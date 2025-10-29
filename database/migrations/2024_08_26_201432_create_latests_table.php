@@ -15,7 +15,7 @@ return new class extends Migration
             $table->id();
             $table->json('quran')->nullable();
             $table->json('hadith')->nullable();
-            $table->json('activitis')->nullable();
+            $table->json('activities')->nullable();
             $table->json('note')->nullable();
             $table->json('q_homework')->nullable();
             $table->json('h_homework')->nullable();

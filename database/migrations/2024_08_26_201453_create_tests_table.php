@@ -13,9 +13,11 @@ return new class extends Migration
     {
         Schema::create('tests', function (Blueprint $table) {
             $table->id();
-            $table->timestamp('at')->unique();
+            $table->dateTime('End_time');
             $table->boolean('aukaf');
             $table->string('notes');
+            $table->integer('number');
+            $table->unsignedBigInteger('daora_id')->onDelete('cascade') ; 
         });
     }
 

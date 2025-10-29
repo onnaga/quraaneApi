@@ -17,5 +17,6 @@ class student extends Model
         'latest_id',
         'ended_quraan_in_aukaf',
         'missing_days',
+        'last_attendance_status'
     ];
 }

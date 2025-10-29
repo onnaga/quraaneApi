@@ -15,12 +15,12 @@ return new class extends Migration
             $table->engine = 'InnoDB';
             $table->id();
             $table->bigInteger('user_id')->unsigned()->nullable() ;
-            $table->foreign('user_id')->references('id')->on('users')->onDelete('set null');
+            $table->foreign('user_id')->references('id')->on('users')->onDelete('cascade');
             $table->bigInteger('teacher_id')->unsigned()->nullable();
             $table->foreign('teacher_id')->references('id')->on('users')->onDelete('set null');
             $table->json('ended_quraan_this_course')->nullable();
             $table->json('ended_hadith_this_course')->nullable();
-            $table->json('activitis_this_course')->nullable();
+            $table->json('activities_this_course')->nullable();
             $table->json('notes')->nullable();
 
 

@@ -14,9 +14,9 @@ return new class extends Migration
         Schema::create('user_tests', function (Blueprint $table) {
              $table->id();
             $table->bigInteger('test_id')->unsigned()->nullable();
-            $table->foreign('test_id')->references('id')->on('tests')->onDelete('set null');
+            $table->foreign('test_id')->references('id')->on('tests') ->onDelete('cascade'); ;
             $table->bigInteger('user_id')->unsigned()->nullable();
-            $table->foreign('user_id')->references('id')->on('users')->onDelete('set null');
+            $table->foreign('user_id')->references('id')->on('users') ->onDelete('cascade'); ;
             $table->json('the_part_to_test_in');
             $table->integer('rating');
             $table->string('notes');

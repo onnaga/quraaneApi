@@ -13,7 +13,7 @@ class latest extends Model
     protected $fillable = [
         'quran',
         'hadith',
-        'activitis',
+        'activities',
         'note',
         'q_homework',
         'h_homework',

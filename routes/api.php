@@ -1,5 +1,7 @@
 <?php
 
+use App\Http\Controllers\DaoraController;
+use App\Http\Controllers\FcmController;
 use App\Http\Controllers\LatestController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\TestController;
@@ -9,45 +11,65 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 
+
+// 1. Update the user's FCM token
+Route::post('/update-fcm-token', [FcmController::class, 'updateToken']);
+
+// 2. Get all notifications for the logged-in user
+Route::get('/notifications', [FcmController::class, 'getNotifications']);
+
+// 3. Mark all unread notifications as read
+Route::post('/notifications/mark-as-read', [FcmController::class, 'markAllAsRead']);
+
+
+
 Route::controller(UserController::class)->group(function () {
-    Route::post('register', 'register');
+    Route::post('register', 'registerStudent');
     Route::post('login', 'login');
     Route::post('get_user_info', 'get_personal_data');
     Route::post('update_password_user', 'update_password');
     Route::post('update_photo_user', 'update_photo');
     Route::post('update_details', 'update_details');
-
-    Route::post('show_all_users', 'showAll');
+    Route::get('suggestions', 'getSuggestions');
+    Route::post('show_all_teachers', 'show_all_teachers');
     Route::get('show_notifications', 'show_notifications');
     Route::get('read_notifications', 'read_notifications');
+    Route::post('update_user/{id}', 'updateUser');
 });
 Route::controller(UserController::class)->group(function () {
     Route::post('add_admin', 'add_admin');
 
     Route::delete('users', 'delete_user');
-    Route::get('take_student','take_student');
-    Route::get('leave_student','leave_student');
+    Route::get('take_student', 'take_student');
+    Route::get('leave_student', 'leave_student');
     Route::post('add_wanting_students', 'add_wanting_students');
-    Route::post('get_score','get_score');
-    Route::get('get_user_by_id','get_user_by_id');
-    Route::get('show_users_without_teacher','show_users_without_teacher');
+    Route::post('get_score', 'get_score');
+    Route::get('get_user_by_id', 'get_user_by_id');
+    Route::get('show_users_without_teacher', 'show_users_without_teacher');
+
+    Route::put('/users/{user}/toggle-privilege', 'toggleTeacherPrivilege');
 });
 
 
 
 Route::controller(LatestController::class)->group(function () {
     Route::post('add_latest_quraan/{user_id}', 'add_latest_quraan');
+    // ✅ (الراوتات الجديدة)
+    Route::post('delete_latest_hadith/{user_id}', 'delete_latest_hadith');
+    Route::post('delete_latest_activity/{user_id}', 'delete_latest_activity');
+    Route::post('delete_latest_note/{user_id}', 'delete_latest_note');
+    Route::post('delete_latest_quraan/{user_id}', 'delete_latest_quraan');
     Route::post('add_latest_hadith/{user_id}', 'add_latest_hadith');
     Route::post('add_latest_activity/{user_id}', 'add_latest_activity');
     Route::post('add_latest_note/{user_id}', 'add_latest_note');
-    Route::get('get_latest_for_student','get_latest_for_student');
-    Route::get('get_rank_my_group','get_rank_my_group');
-    Route::get('get_rank_masjed','get_rank_masjed');
+    Route::get('get_latest_for_student', 'get_latest_for_student');
+    Route::get('get_rank_my_group', 'get_rank_my_group');
+    Route::get('get_rank_masjed', 'get_rank_masjed');
 });
 
 Route::controller(ReportController::class)->group(function () {
     Route::get('show_reports', 'show_reports');
-    Route::get('show_user_reports', 'show_user_reports');
+    // Route::get('show_user_reports', 'show_user_reports');
 });
 
 Route::controller(TestController::class)->group(function () {
@@ -61,8 +83,17 @@ Route::controller(TestController::class)->group(function () {
     Route::get('show_success_students_in_test/{test_id}', 'show_success_students_in_test');
     Route::post('make_aukaf_test_for_success_students/{test_id}', 'make_aukaf_test_for_success_students');
     Route::post('update_aukaf_tests_after_the_test/{test_id}/{user_id}', 'update_aukaf_tests_after_the_test');
-
-
 });
 
 
+
+Route::controller(DaoraController::class)->group(function () {
+    Route::post('add_daora', 'add_daora');
+    Route::delete('delete_daora/{id}', 'delete_daora');
+    Route::get('get_all_daoras', 'get_all_daoras');
+
+    Route::post('change_my_daora', 'change_my_daora');
+    Route::post('/daoras/photos',  'getPhotos');
+
+    Route::get('/jobs-and-areas', 'getJobsAndAreas');
+});

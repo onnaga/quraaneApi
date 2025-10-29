@@ -19,24 +19,25 @@ return new class extends Migration
             $table->integer('privilege')->nullable();
             $table->integer('age')->nullable();
             $table->string('photo')->nullable();
-            $table->string(column: 'photo_hash')->nullable();
+            $table->string('photo_hash')->nullable();
+            $table->unsignedBigInteger('daora_id')->nullable();
+            $table->string('family_status')->nullable();
+            $table->text('fcm_token')->nullable();
+
+            // ✅ --- التعديلات الجديدة ---
+            $table->unsignedBigInteger('job_id')->nullable();
+            $table->unsignedBigInteger('area_id')->nullable();
+
+            $table->foreign('job_id')->references('id')->on('jobs')->onDelete('set null');
+            $table->foreign('area_id')->references('id')->on('areas')->onDelete('set null');
+            // --- نهاية التعديلات ---
+
             $table->timestamps();
-
         });
-
-        // Schema::create('password_reset_tokens', function (Blueprint $table) {
-        //     $table->string('email')->primary();
-        //     $table->string('token');
-        //     $table->timestamp('created_at')->nullable();
-        // });
     }
-
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
-        // Schema::dropIfExists('users');
+        Schema::dropIfExists('users');
         // Schema::dropIfExists('password_reset_tokens');
         // Schema::dropIfExists('sessions');
     }

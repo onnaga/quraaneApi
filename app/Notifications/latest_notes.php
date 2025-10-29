@@ -2,58 +2,23 @@
 
 namespace App\Notifications;
 
-use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Notifications\Messages\MailMessage;
-use Illuminate\Notifications\Notification;
-
-class latest_notes extends Notification
+class latest_notes extends BaseNotification
 {
-    use Queueable;
-
-    /**
-     * Create a new notification instance.
-     */
-    private $lost_points ;
+    private $lost_points;
     private $notes;
+
     public function __construct($data)
     {
-    $this->notes = $data[0];
-    $this->lost_points = $data[1];
+        $this->notes = $data[0];
+        $this->lost_points = $data[1];
     }
 
-    /**
-     * Get the notification's delivery channels.
-     *
-     * @return array<int, string>
-     */
-    public function via(object $notifiable): array
-    {
-        return ['database'];
-    }
-
-    /**
-     * Get the mail representation of the notification.
-     */
-    public function toMail(object $notifiable): MailMessage
-    {
-        return (new MailMessage)
-                    ->line('The introduction to the notification.')
-                    ->action('Notification Action', url('/'))
-                    ->line('Thank you for using our application!');
-    }
-
-    /**
-     * Get the array representation of the notification.
-     *
-     * @return array<string, mixed>
-     */
-    public function toArray(object $notifiable): array
+    protected function getNotificationData(): array
     {
         return [
-            'title'=> 'there is a note from the teacher',
-            'body'=>'the note is : '.$this->notes ,
-            'footer'=>'lost points is : ' . $this->lost_points,
+            'title'=> 'ثم إضافة إنذار جديد',
+            'body'=>'الإنذار هو  : '.$this->notes,
+            'footer'=>'النقاط المخصومة : '.$this->lost_points,
         ];
     }
 }

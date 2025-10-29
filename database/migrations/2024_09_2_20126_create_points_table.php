@@ -14,7 +14,7 @@ return new class extends Migration
         Schema::create('points', function (Blueprint $table) {
             $table->id();
             $table->bigInteger('user_id')->unsigned()->nullable();
-            $table->foreign('user_id')->references('id')->on('users')->onDelete('set null');
+            $table->foreign('user_id')->references('id')->on('users') ->onDelete('cascade'); ;
             $table->integer('q_points')->nullable();
             $table->integer('h_points')->nullable();
             $table->integer('a_points')->nullable();

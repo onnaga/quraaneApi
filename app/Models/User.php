@@ -6,21 +6,19 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Laravel\Sanctum\HasApiTokens;
+use PHPOpenSourceSaver\JWTAuth\Contracts\JWTSubject;// تأكد من وجود هذا السطر إذا كنت تستخدم JWT
 
-use PHPOpenSourceSaver\JWTAuth\Contracts\JWTSubject;
-
-class User extends Authenticatable implements JWTSubject
+class User extends Authenticatable implements JWTSubject // تأكد من وجود implements JWTSubject
 {
-    use HasFactory, Notifiable;
+    use HasApiTokens, HasFactory, Notifiable;
 
     /**
      * The attributes that are mass assignable.
      *
      * @var array<int, string>
      */
-
-
-      protected $fillable = [
+    protected $fillable = [
         'name',
         'phone_number',
         'password',
@@ -28,8 +26,12 @@ class User extends Authenticatable implements JWTSubject
         'age',
         'photo',
         'photo_hash',
+        'daora_id',
+        'family_status',
+        'fcm_token',
+        'job_id', // ✅ --- إضافة الحقول الجديدة هنا
+        'area_id', // ✅ --- إضافة الحقول الجديدة هنا
     ];
-
 
     /**
      * The attributes that should be hidden for serialization.
@@ -42,17 +44,34 @@ class User extends Authenticatable implements JWTSubject
     ];
 
     /**
-     * Get the attributes that should be cast.
+     * The attributes that should be cast.
      *
-     * @return array<string, string>
+     * @var array<string, string>
      */
-    protected function casts(): array
+    protected $casts = [
+        'email_verified_at' => 'datetime',
+        'password' => 'hashed',
+    ];
+
+    // ✅ --- إضافة العلاقات الجديدة ---
+
+    /**
+     * Get the job associated with the user.
+     */
+    public function job()
     {
-        return [
-            'email_verified_at' => 'datetime',
-            'password' => 'hashed',
-        ];
+        return $this->belongsTo(Job::class);
     }
+
+    /**
+     * Get the area associated with the user.
+     */
+    public function area()
+    {
+        return $this->belongsTo(Area::class);
+    }
+    
+    // --- نهاية إضافة العلاقات ---
 
 
     public function getJWTIdentifier()
@@ -68,5 +87,16 @@ class User extends Authenticatable implements JWTSubject
     public function getJWTCustomClaims()
     {
         return [];
+    }
+    /**
+     * تعريف العلاقة بين المستخدم واختباراته.
+     * * The tests that belong to the user.
+     */
+    public function user_tests()
+    {
+        // المستخدم الواحد يمتلك العديد من سجلات user_test
+        // 'user_id' هو المفتاح الأجنبي في جدول user_tests
+        // 'id' هو المفتاح الأساسي في جدول users
+        return $this->hasMany(user_test::class, 'user_id', 'id');
     }
 }

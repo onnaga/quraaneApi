@@ -15,7 +15,7 @@ class report extends Model
         'teacher_id',
         'ended_quraan_this_course',
         'ended_hadith_this_course',
-        'activitis_this_course',
+        'activities_this_course',
         'notes'
     ];
 }

@@ -12,8 +12,10 @@ class test extends Model
     public $timestamps = false;
 
     protected $fillable = [
-        'at',
+        'End_time',
         'aukaf',
         'notes',
+        'daora_id' ,
+        'number'
     ];
 }
