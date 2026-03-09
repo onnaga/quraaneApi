@@ -6,11 +6,7 @@ use App\Http\Controllers\LatestController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\TestController;
 use App\Http\Controllers\UserController;
-
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
-
-
 
 // 1. Update the user's FCM token
 Route::post('/update-fcm-token', [FcmController::class, 'updateToken']);
@@ -20,8 +16,6 @@ Route::get('/notifications', [FcmController::class, 'getNotifications']);
 
 // 3. Mark all unread notifications as read
 Route::post('/notifications/mark-as-read', [FcmController::class, 'markAllAsRead']);
-
-
 
 Route::controller(UserController::class)->group(function () {
     Route::post('register', 'registerStudent');
@@ -50,8 +44,6 @@ Route::controller(UserController::class)->group(function () {
     Route::put('/users/{user}/toggle-privilege', 'toggleTeacherPrivilege');
 });
 
-
-
 Route::controller(LatestController::class)->group(function () {
     Route::post('add_latest_quraan/{user_id}', 'add_latest_quraan');
     // ✅ (الراوتات الجديدة)
@@ -65,6 +57,9 @@ Route::controller(LatestController::class)->group(function () {
     Route::get('get_latest_for_student', 'get_latest_for_student');
     Route::get('get_rank_my_group', 'get_rank_my_group');
     Route::get('get_rank_masjed', 'get_rank_masjed');
+    Route::post('update_halaka_name', 'update_halaka_name');
+    Route::post('change_halaka_teacher', 'change_halaka_teacher');
+    Route::delete('delete_halaka/{id}', 'delete_halaka');
 });
 
 Route::controller(ReportController::class)->group(function () {
@@ -76,7 +71,9 @@ Route::controller(TestController::class)->group(function () {
     Route::post('add_new_test', 'add_new_test');
     Route::get('show_tests', 'show_tests');
     Route::get('accept_test/{test_id}', 'accept_test');
+    Route::post('accept_test_for_student/{test_id}', 'accept_test_for_student');
     Route::delete('delete_accepted_test/{test_id}', 'delete_accepted_test');
+    Route::delete('delete_accepted_test_for_student/{test_id}', 'delete_accepted_test_for_student');
     Route::delete('delete_test/{test_id}', 'delete_test');
     Route::get('show_test_accepters/{test_id}', 'show_test_accepters');
     Route::post('update_test_accepter_data/{test_id}/{user_id}', 'update_test_accepter_data');
@@ -85,15 +82,13 @@ Route::controller(TestController::class)->group(function () {
     Route::post('update_aukaf_tests_after_the_test/{test_id}/{user_id}', 'update_aukaf_tests_after_the_test');
 });
 
-
-
 Route::controller(DaoraController::class)->group(function () {
     Route::post('add_daora', 'add_daora');
     Route::delete('delete_daora/{id}', 'delete_daora');
     Route::get('get_all_daoras', 'get_all_daoras');
 
     Route::post('change_my_daora', 'change_my_daora');
-    Route::post('/daoras/photos',  'getPhotos');
+    Route::post('/daoras/photos', 'getPhotos');
 
     Route::get('/jobs-and-areas', 'getJobsAndAreas');
 });

@@ -7,11 +7,22 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
-use PHPOpenSourceSaver\JWTAuth\Contracts\JWTSubject;// تأكد من وجود هذا السطر إذا كنت تستخدم JWT
+use PHPOpenSourceSaver\JWTAuth\Contracts\JWTSubject; // تأكد من وجود هذا السطر إذا كنت تستخدم JWT
 
 class User extends Authenticatable implements JWTSubject // تأكد من وجود implements JWTSubject
 {
     use HasApiTokens, HasFactory, Notifiable;
+
+    // Role Constants
+    public const ROLE_STUDENT = 1;
+
+    public const ROLE_TEACHER = 2;
+
+    public const ROLE_SUPERVISOR = 3;
+
+    public const ROLE_ADMIN = 4;
+
+    public const ROLE_SUPER_ADMIN = 5;
 
     /**
      * The attributes that are mass assignable.
@@ -31,6 +42,7 @@ class User extends Authenticatable implements JWTSubject // تأكد من وجو
         'fcm_token',
         'job_id', // ✅ --- إضافة الحقول الجديدة هنا
         'area_id', // ✅ --- إضافة الحقول الجديدة هنا
+        'enrollment_date', // تاريخ الانتساب
     ];
 
     /**
@@ -70,9 +82,8 @@ class User extends Authenticatable implements JWTSubject // تأكد من وجو
     {
         return $this->belongsTo(Area::class);
     }
-    
-    // --- نهاية إضافة العلاقات ---
 
+    // --- نهاية إضافة العلاقات ---
 
     public function getJWTIdentifier()
     {
@@ -88,6 +99,7 @@ class User extends Authenticatable implements JWTSubject // تأكد من وجو
     {
         return [];
     }
+
     /**
      * تعريف العلاقة بين المستخدم واختباراته.
      * * The tests that belong to the user.

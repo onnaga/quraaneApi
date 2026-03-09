@@ -7,25 +7,26 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\DB;
+use App\Traits\ApiResponseTrait;
+use App\Http\Requests\Api\Fcm\UpdateTokenRequest;
 
 class FcmController extends Controller
 {
+    use ApiResponseTrait;
+
     public function __construct()
     {
         $this->middleware('auth:api'); // JWT guard
     }
 
     // تحديث FCM token مباشرة
-    public function updateToken(Request $request)
+    public function updateToken(UpdateTokenRequest $request)
     {
-        $request->validate([
-            'fcm_token' => 'required|string',
-        ]);
-
         /** @var User $user */
         $user = Auth::user();
 
-        User::where('id', $user->id)->update([
+        // التحديث مباشرة من خلال الكائن مفضل أكثر من استعلام DB جديد إذا كان الكائن موجوداً
+        $user->update([
             'fcm_token' => $request->fcm_token,
         ]);
 
