@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "3b0e1ee317fdab38ec14108db13977f7",
+    "content-hash": "8a03e927c569664be4cc397a5f35d62b",
     "packages": [
         {
             "name": "beste/clock",
@@ -4150,6 +4150,72 @@
             "time": "2026-02-16T23:10:27+00:00"
         },
         {
+            "name": "p-chess/chess",
+            "version": "v1.1.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/p-chess/chess.git",
+                "reference": "256f6dcfb9b637ff1dce9b5b5e83a4397ac6375e"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/p-chess/chess/zipball/256f6dcfb9b637ff1dce9b5b5e83a4397ac6375e",
+                "reference": "256f6dcfb9b637ff1dce9b5b5e83a4397ac6375e",
+                "shasum": ""
+            },
+            "require": {
+                "ext-ctype": "*",
+                "php": "^8.1"
+            },
+            "require-dev": {
+                "ergebnis/phpunit-slow-test-detector": "^2.20",
+                "friendsofphp/php-cs-fixer": "^3.92",
+                "imagine/imagine": "^1.5",
+                "phpbench/phpbench": "^1.4",
+                "phpstan/phpstan": "^2.0",
+                "phpstan/phpstan-strict-rules": "^2.0",
+                "phpunit/phpunit": "^10.5 || ^11.5 || ^12.5"
+            },
+            "suggest": {
+                "imagine/imagine": "To generate board images."
+            },
+            "type": "library",
+            "extra": {
+                "branch-alias": {
+                    "dev-master": "1.0-dev"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "PChess\\Chess\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "ryan hs",
+                    "email": "mr.ryansilalahi@gmail.com"
+                },
+                {
+                    "name": "Arkadiusz Kondas",
+                    "email": "arkadiusz.kondas@gmail.com"
+                },
+                {
+                    "name": "Massimiliano Arione",
+                    "email": "garakkio@gmail.com"
+                }
+            ],
+            "description": "A PHP chess library that is used for chess move generation/validation, piece placement/movement, and check/checkmate/stalemate detection",
+            "support": {
+                "issues": "https://github.com/p-chess/chess/issues",
+                "source": "https://github.com/p-chess/chess/tree/v1.1.0"
+            },
+            "time": "2026-01-22T13:05:44+00:00"
+        },
+        {
             "name": "php-open-source-saver/jwt-auth",
             "version": "v2.8.3",
             "source": {
@@ -4859,6 +4925,66 @@
                 "source": "https://github.com/bobthecow/psysh/tree/v0.12.20"
             },
             "time": "2026-02-11T15:05:28+00:00"
+        },
+        {
+            "name": "pusher/pusher-php-server",
+            "version": "7.2.8",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/pusher/pusher-http-php.git",
+                "reference": "4aa139ed2a2a805cd265449b691198beee1309d2"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/pusher/pusher-http-php/zipball/4aa139ed2a2a805cd265449b691198beee1309d2",
+                "reference": "4aa139ed2a2a805cd265449b691198beee1309d2",
+                "shasum": ""
+            },
+            "require": {
+                "ext-curl": "*",
+                "ext-json": "*",
+                "guzzlehttp/guzzle": "^7.2",
+                "php": "^7.3|^8.0",
+                "psr/log": "^1.0|^2.0|^3.0"
+            },
+            "require-dev": {
+                "overtrue/phplint": "^2.3",
+                "phpunit/phpunit": "^9.3"
+            },
+            "type": "library",
+            "extra": {
+                "branch-alias": {
+                    "dev-master": "5.0-dev"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Pusher\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "description": "Library for interacting with the Pusher REST API",
+            "keywords": [
+                "events",
+                "messaging",
+                "php-pusher-server",
+                "publish",
+                "push",
+                "pusher",
+                "real time",
+                "real-time",
+                "realtime",
+                "rest",
+                "trigger"
+            ],
+            "support": {
+                "issues": "https://github.com/pusher/pusher-http-php/issues",
+                "source": "https://github.com/pusher/pusher-http-php/tree/7.2.8"
+            },
+            "time": "2026-05-18T13:11:36+00:00"
         },
         {
             "name": "ralouphie/getallheaders",

@@ -31,19 +31,9 @@ class DaoraService
             $photoHash = null;
 
             if ($imageFile) {
-                $photoName = uniqid('daora_').'.'.$imageFile->getClientOriginalExtension();
-
-                $manager = new \Intervention\Image\ImageManager(new \Intervention\Image\Drivers\Gd\Driver);
-                $img = $manager->read($imageFile);
-                $img->scaleDown(800);
-
-                $savePath = storage_path('app/public/uploadsDaoras');
-                if (! file_exists($savePath)) {
-                    mkdir($savePath, 0777, true);
-                }
-
-                $img->save($savePath.'/'.$photoName);
-                $photoHash = hash_file('sha256', $savePath.'/'.$photoName);
+                $stored = app(\App\Services\ImageStorageService::class)->store($imageFile, 'uploadsDaoras');
+                $photoName = $stored['photo'];
+                $photoHash = $stored['photo_hash'];
             }
 
             // 3. إنشاء دورة وربطها بالمشرف
@@ -142,13 +132,7 @@ class DaoraService
 
         $photos = [];
         foreach ($daoras as $daora) {
-            if ($daora->photo && Storage::disk('public')->exists('uploadsDaoras/'.$daora->photo)) {
-                $photos[$daora->id] = base64_encode(
-                    Storage::disk('public')->get('uploadsDaoras/'.$daora->photo)
-                );
-            } else {
-                $photos[$daora->id] = null;
-            }
+            $photos[$daora->id] = $daora->photo_url;
         }
 
         return $photos;

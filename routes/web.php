@@ -1,15 +1,8 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\MediaController;
 
-Route::get('/proxy-image/{filename}', function ($filename) {
-    $path = storage_path("app/public/uploadsDaoras/$filename");
-    if (!file_exists($path)) {
-        abort(404);
-    }
-    return response()->file($path, [
-        'Access-Control-Allow-Origin' => '*',
-        'Access-Control-Allow-Methods' => 'GET, OPTIONS',
-        'Access-Control-Allow-Headers' => '*',
-    ]);
-});
+Route::get('/media/{folder}/{filename}', [MediaController::class, 'show'])
+    ->where('folder', '[A-Za-z0-9_]+')
+    ->where('filename', '[A-Za-z0-9_\-\.]+');

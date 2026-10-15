@@ -1,10 +1,12 @@
 <?php
 
 namespace App\Notifications;
+use App\Services\QuranService;
 
 class latest_quraan_with_homework extends BaseNotification
 {
-    private $num  = [];
+    private $num = [];
+
     private $homework_num = [];
 
     public function __construct($data)
@@ -19,10 +21,13 @@ class latest_quraan_with_homework extends BaseNotification
 
     protected function getNotificationData(): array
     {
+        $surahNames = array_map(fn($id) => QuranService::getSurahName($id), $this->num);
+        $homeworkNames = array_map(fn($id) => QuranService::getSurahName($id), $this->homework_num);
+
         return [
-            'title'=> 'تم إضافة إنجاز قرآن جديد ',
-            'body'=>'السورة هي : '.json_encode($this->num).' الوظيفة هي : '.json_encode($this->homework_num),
-            'footer'=>'اضغط لأجل التفاصيل',
+            'title' => 'تم إضافة إنجاز قرآن جديد ',
+            'body' => 'السورة هي : '.implode(' ، ', $surahNames).' الوظيفة هي : '.implode(' ، ', $homeworkNames),
+            'footer' => 'تقبل الله منا ومنكم',
         ];
     }
 }

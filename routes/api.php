@@ -6,8 +6,12 @@ use App\Http\Controllers\LatestController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\TestController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\ActivityCategoryController;
+use App\Http\Controllers\PrayerProgramController;
+use App\Http\Controllers\PrayerLogController;
 use Illuminate\Support\Facades\Route;
-
+use App\Http\Controllers\StudentGoalController;
+use App\Http\Controllers\ArchiveController;
 // 1. Update the user's FCM token
 Route::post('/update-fcm-token', [FcmController::class, 'updateToken']);
 
@@ -16,6 +20,19 @@ Route::get('/notifications', [FcmController::class, 'getNotifications']);
 
 // 3. Mark all unread notifications as read
 Route::post('/notifications/mark-as-read', [FcmController::class, 'markAllAsRead']);
+
+use App\Http\Controllers\SystemController;
+use App\Http\Controllers\AdController;
+
+Route::get('app-version', [SystemController::class, 'appVersion']);
+
+Route::get('active-ad', [AdController::class, 'getActiveAd']);
+Route::get('ads', [AdController::class, 'index']);
+Route::post('ads', [AdController::class, 'store']);
+Route::delete('ads/{id}', [AdController::class, 'destroy']);
+Route::post('ads/update-stats/{id}', [AdController::class, 'updateStats']);
+Route::post('ads/toggle-status/{id}', [AdController::class, 'toggleStatus']);
+
 
 Route::controller(UserController::class)->group(function () {
     Route::post('register', 'registerStudent');
@@ -37,10 +54,17 @@ Route::controller(UserController::class)->group(function () {
     Route::get('take_student', 'take_student');
     Route::get('leave_student', 'leave_student');
     Route::post('add_wanting_students', 'add_wanting_students');
+    Route::post('add_absent_teachers', 'add_absent_teachers');
+    Route::post('save_absence_reason', 'save_absence_reason');
     Route::post('get_score', 'get_score');
     Route::get('get_user_by_id', 'get_user_by_id');
     Route::get('show_users_without_teacher', 'show_users_without_teacher');
-
+    // === الراوتات المفقودة التي تم استنتاجها من الكود ===
+    Route::post('update_user_behavior/{user_id}', 'update_user_behavior');
+    Route::get('get_user_behavior/{user_id}', 'get_user_behavior');
+    Route::get('student/{studentUserId}/teachers-history', 'getStudentTeachersHistory');
+// راوت تحديث صورة الطالب (تم استنتاجه من فلاتر)
+    Route::post('update_student_photo/{student_id}', 'update_student_photo');
     Route::put('/users/{user}/toggle-privilege', 'toggleTeacherPrivilege');
 });
 
@@ -65,6 +89,7 @@ Route::controller(LatestController::class)->group(function () {
 Route::controller(ReportController::class)->group(function () {
     Route::get('show_reports', 'show_reports');
     // Route::get('show_user_reports', 'show_user_reports');
+    Route::post('comprehensive_report/{user_id}', 'getComprehensiveReport');
 });
 
 Route::controller(TestController::class)->group(function () {
@@ -92,3 +117,109 @@ Route::controller(DaoraController::class)->group(function () {
 
     Route::get('/jobs-and-areas', 'getJobsAndAreas');
 });
+
+// Activity Categories
+Route::controller(ActivityCategoryController::class)->group(function () {
+    Route::get('activity-categories', 'index');
+    Route::post('activity-categories', 'store');
+    Route::put('activity-categories/{id}', 'update');
+    Route::delete('activity-categories/{id}', 'destroy');
+});
+
+// Prayer Programs
+Route::controller(PrayerProgramController::class)->group(function () {
+    Route::get('prayer-programs', 'index');
+    Route::post('prayer-programs', 'store');
+    Route::delete('prayer-programs/{id}', 'destroy');
+});
+
+// Prayer Logs
+Route::controller(PrayerLogController::class)->group(function () {
+    Route::get('prayer-programs/{programId}/rankings', 'getRankings');
+    Route::get('prayer-programs/{programId}/my-logs', 'getMyLogs');
+    Route::get('prayer-programs/{programId}/student-logs/{studentId}', 'getStudentLogs');
+    Route::post('prayer-programs/{programId}/logs', 'upsertLog');
+});
+
+// Tournaments
+Route::controller(\App\Http\Controllers\TournamentController::class)->group(function () {
+    Route::get('tournaments', 'index');
+    Route::post('tournaments', 'store');
+    Route::post('tournaments/{id}/subscribe', 'subscribe');
+    Route::post('tournaments/{id}/outcome', 'reportOutcome');
+    Route::get('tournaments/{id}', 'show');
+});
+
+// Chess Matches
+Route::controller(\App\Http\Controllers\ChessMatchController::class)->group(function () {
+    Route::post('chess-matches/challenge', 'challenge');
+    Route::post('chess-matches/{id}/accept', 'accept');
+    Route::post('chess-matches/{id}/decline', 'decline');
+    Route::post('chess-matches/{id}/move', 'move');
+    Route::post('chess-matches/{id}/end', 'end');
+});
+
+// ==========================================
+// 1. أهداف الطالب (Student Goals)
+// ==========================================
+Route::controller(StudentGoalController::class)->group(function () {
+    Route::post('add_student_goals', 'add_student_goals');
+    Route::get('get_student_goals/{user_id}', 'get_student_goals');
+    Route::post('evaluate_goal/{id}', 'evaluate_goal');
+    Route::delete('delete_goal/{id}', 'delete_goal');
+});
+
+// ==========================================
+// 2. نظام الأرشفة (Archive System)
+// ==========================================
+Route::controller(ArchiveController::class)->group(function () {
+    Route::post('archive-daora', 'archiveDaora');
+    Route::get('archived-dates/{daoraId}', 'getArchivedDates');
+    Route::get('archived-records-by-date/{daoraId}/{date}', 'getArchivedRecordsByDate');
+    Route::get('archived-search/{name}', 'searchArchives');
+    Route::get('export-students/{daoraId}', 'exportStudentsCSV');
+});
+
+// ==========================================
+// 3. إدارة التقارير (Management Reports)
+// ==========================================
+use App\Http\Controllers\ManagementReportController;
+
+Route::controller(ManagementReportController::class)->group(function () {
+    // جلب الإحصائيات المحسوبة آلياً
+    Route::get('management-reports/teacher-stats/{teacher_id}', 'getTeacherStats');
+    Route::get('management-reports/mosque-stats/{daora_id}', 'getMosqueStats');
+
+    // حفظ / مشاركة تقرير
+    Route::post('management-reports', 'store');
+
+    // تصفح التقارير
+    Route::get('management-reports/my-reports', 'myReports');
+    Route::get('management-reports/by-teacher/{teacher_id}', 'byTeacher');
+    Route::get('management-reports/by-daora/{daora_id}', 'byDaora');
+    Route::get('management-reports/{id}', 'show');
+
+    // طلبات التقارير
+    Route::post('report-requests', 'createRequest');
+    Route::get('report-requests/pending', 'pendingRequests');
+
+    // أوقات الدورة والمهام اليومية للأساتذة
+    Route::post('daora-times', 'saveDaoraTimes');
+    Route::get('daora-times/{daora_id}', 'getDaoraTimes');
+    Route::post('teacher-daily-tasks/mark-copied', 'markReportCopied');
+});
+
+use App\Http\Controllers\DaoraPeriodController;
+
+Route::controller(DaoraPeriodController::class)->group(function () {
+    Route::get('daora-periods/{daora_id}', 'index');
+    Route::get('daora-periods/details/{id}', 'show');
+    Route::post('daora-periods', 'store');
+    Route::put('daora-periods/{id}', 'update');
+    Route::delete('daora-periods/{id}', 'destroy');
+    Route::post('daora-periods/{id}/teachers', 'assignTeachers');
+    Route::delete('daora-periods/{id}/teachers/{teacher_id}', 'removeTeacher');
+    Route::get('daora-periods/{id}/available-teachers', 'availableTeachers');
+});
+
+

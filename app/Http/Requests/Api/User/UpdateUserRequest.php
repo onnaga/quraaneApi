@@ -15,14 +15,32 @@ class UpdateUserRequest extends BaseApiRequest
 
     public function rules(): array
     {
-        // the rule handles dynamic ID based on the route
         $userId = $this->route('id') ?? \Illuminate\Support\Facades\Auth::id();
 
         return [
             'name' => 'required|string|max:255|unique:users,name,'.$userId,
             'phone_number' => 'required|string|max:20',
-            'age' => 'required|integer|min:1',
+            'birth_date' => 'nullable|date',
             'ended_quraan_in_aukaf' => 'nullable|string',
+
+            // حقول المستخدم الجديدة
+            'family_members_count' => 'nullable|integer|min:0',
+            'notes' => 'nullable|string|max:1000',
+            'skills' => 'nullable|string|max:1000',
+            'certificates' => 'nullable|string|max:1000',
+            'enrollment_date' => 'nullable|date', // ✅ إضافة التحقق هنا
+            'job' => 'nullable|string|max:255',
+            'address' => 'nullable|string|max:255',
+            'family_status' => 'nullable|string|max:255',
+            // حقول الطالب الجديدة
+            'current_grade' => 'nullable|string|max:100',
+            'school_name' => 'nullable|string|max:255',
+            'father_phone' => 'nullable|string|max:20',
+            'mother_phone' => 'nullable|string|max:20',
+            'landline_phone' => 'nullable|string|max:20',
+            'other_phone' => 'nullable|string|max:20',
+            'preferred_contact' => 'nullable|string|max:255',
+            'previous_mosques' => 'nullable|string|max:1000',
         ];
     }
 

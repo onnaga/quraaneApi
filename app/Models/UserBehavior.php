@@ -13,6 +13,7 @@ class UserBehavior extends Model
         'habits',
         'discipline',
         'morals',
+        'skills',
         'positive_actions',
         'negative_actions',
     ];

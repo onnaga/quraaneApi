@@ -14,15 +14,14 @@ return new class extends Migration
         Schema::create('reports', function (Blueprint $table) {
             $table->engine = 'InnoDB';
             $table->id();
-            $table->bigInteger('user_id')->unsigned()->nullable() ;
+            $table->bigInteger('user_id')->unsigned()->nullable();
             $table->foreign('user_id')->references('id')->on('users')->onDelete('cascade');
             $table->bigInteger('teacher_id')->unsigned()->nullable();
-            $table->foreign('teacher_id')->references('id')->on('users')->onDelete('set null');
+            $table->foreign('teacher_id')->references('id')->on('users');
             $table->json('ended_quraan_this_course')->nullable();
             $table->json('ended_hadith_this_course')->nullable();
             $table->json('activities_this_course')->nullable();
             $table->json('notes')->nullable();
-
 
             $table->timestamps();
         });

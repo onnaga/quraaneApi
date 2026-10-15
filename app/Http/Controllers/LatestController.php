@@ -28,6 +28,8 @@ class LatestController extends Controller
             $data = json_decode($request->getContent());
             $this->latestService->addQuraan($data, $user_id, $authUser);
 
+            \App\Models\TeacherDailyTask::markTaskCompleted($authUser->id, 'quran_tasks_taken');
+
             return response()->json(['updated' => true], 200);
 
         } catch (\Exception $e) {
@@ -171,6 +173,8 @@ class LatestController extends Controller
                 $data = json_decode($request->getContent());
                 $this->latestService->addHadith($data, $user_id);
 
+                \App\Models\TeacherDailyTask::markTaskCompleted(auth('api')->id(), 'quran_tasks_taken');
+
                 return response()->json([
                     'updated' => true,
                 ], 200);
@@ -193,12 +197,23 @@ class LatestController extends Controller
     {
         try {
             if (auth('api')->user()->privilege > 1) {
-                $data = $request->getContent();
-                $this->latestService->addActivity($data, $user_id);
+                $content = json_decode($request->getContent(), true);
+                
+                if (isset($content['activities'])) {
+                    $activities_data = $content['activities'];
+                    $date = $content['date'] ?? date('Y-m-d');
+                } else if (is_array($content) && count($content) == 2 && is_string($content[1])) {
+                    $activities_data = $content[0];
+                    $date = $content[1];
+                } else {
+                    $activities_data = $content;
+                    $date = date('Y-m-d');
+                }
 
-                // إرجاع رد مطابق للقديم بأقرب وقت ممكن
+                $this->latestService->addActivity($activities_data, $date, $user_id);
+
                 return response()->json([
-                    'latest_created' => true, // values simplified due to extraction
+                    'latest_created' => true,
                     'updated' => true,
                     'student' => null,
                     'report' => true,
@@ -222,7 +237,8 @@ class LatestController extends Controller
     {
         try {
             if (auth('api')->user()->privilege > 1) {
-                $this->latestService->addNote($request->note, $request->lost_point, $user_id);
+                $date = $request->date ?? date('Y-m-d');
+                $this->latestService->addNote($request->note, $request->lost_point, $date, $user_id);
 
                 return response()->json([
                     'creted' => true,
@@ -322,8 +338,7 @@ class LatestController extends Controller
             ], 500);
         }
     }
-
-    public function change_halaka_teacher(Request $request)
+public function change_halaka_teacher(Request $request)
     {
         try {
             $request->validate([
@@ -346,23 +361,60 @@ class LatestController extends Controller
                 return response()->json(['message' => 'المستخدم المحدد ليس أستاذاً'], 400);
             }
 
-            // Check if the new teacher already has a halaka
+            $oldTeacherId = $oldHalaka->teacher_id;
+            
+            // جلب الـ id والـ user_id معاً لتحسين الأداء
+            $studentsInHalaka = \App\Models\student::where('halaka_id', $oldHalaka->id)->get(['id', 'user_id']);
+            $studentIds = $studentsInHalaka->pluck('id')->toArray();
+            $userIds = $studentsInHalaka->pluck('user_id')->toArray();
+
+            // معالجة جدول العلاقة لجميع الطلاب
+            if (! empty($studentIds)) {
+                // 1. وضع تاريخ الانتهاء مع الأستاذ القديم
+                \Illuminate\Support\Facades\DB::table('student_teacher')
+                    ->whereIn('student_id', $studentIds)
+                    ->where('teacher_id', $oldTeacherId)
+                    ->whereNull('ended_at')
+                    ->update([
+                        'ended_at' => now()->toDateString(),
+                        'updated_at' => now(),
+                    ]);
+
+                // 2. تسجيل تاريخ البدء مع الأستاذ الجديد 
+                $newRecords = array_map(function ($id) use ($newTeacher) {
+                    return [
+                        'teacher_id' => $newTeacher->id,
+                        'student_id' => $id,
+                        'started_at' => now()->toDateString(),
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ];
+                }, $studentIds);
+
+                \Illuminate\Support\Facades\DB::table('student_teacher')->insert($newRecords);
+                
+                // التعديل الأهم: تحديث جدول التقارير لجميع الطلاب دفعة واحدة
+                if (!empty($userIds)) {
+                    \App\Models\report::whereIn('user_id', $userIds)->update([
+                        'teacher_id' => $newTeacher->id,
+                    ]);
+                }
+            }
+
+            // فحص ما إذا كان الأستاذ الجديد يملك حلقة مسبقاً
             $existingHalakaForNewTeacher = \App\Models\Halaka::where('teacher_id', $newTeacher->id)->first();
 
             if ($existingHalakaForNewTeacher && $existingHalakaForNewTeacher->id != $oldHalaka->id) {
-                // MERGE SCENARIO
-                // 1. Move all students from the old halaka to the new teacher's existing halaka
+                // سيناريو الدمج
                 \App\Models\student::where('halaka_id', $oldHalaka->id)
                     ->update([
                         'teacher_id' => $newTeacher->id,
                         'halaka_id' => $existingHalakaForNewTeacher->id,
                     ]);
 
-                // 2. Update the students count of the new teacher's halaka
                 $existingHalakaForNewTeacher->students_count += $oldHalaka->students_count;
                 $existingHalakaForNewTeacher->save();
 
-                // 3. Delete the old halaka as it's now empty
                 $oldHalaka->delete();
 
                 return response()->json([
@@ -371,7 +423,7 @@ class LatestController extends Controller
                 ], 200);
 
             } else {
-                // NORMAL TRANSFER SCENARIO
+                // سيناريو النقل العادي
                 $oldHalaka->teacher_id = $newTeacher->id;
                 $oldHalaka->save();
 
@@ -390,7 +442,6 @@ class LatestController extends Controller
             ], 500);
         }
     }
-
     public function delete_halaka(Request $request, $id)
     {
         try {

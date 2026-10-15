@@ -12,9 +12,9 @@ return [
 
     'allowed_headers' => ['*'],
 
-    'exposed_headers' => [],
+    'exposed_headers' => ['Authorization', 'Content-Type', 'X-Requested-With'],
 
-    'max_age' => 0,
+    'max_age' => 86400, // 24 hours (يقلل من طلبات التحقق المسبق - Preflight)
 
     'supports_credentials' => false,
 

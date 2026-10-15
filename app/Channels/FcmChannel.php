@@ -16,10 +16,14 @@ class FcmChannel
             return;
         }
 
-        // نستدعي الدالة التي ستجهز بيانات الإشعار
-        $message = $notification->toFcm($notifiable);
+        try {
+            // نستدعي الدالة التي ستجهز بيانات الإشعار
+            $message = $notification->toFcm($notifiable);
 
-        // نرسل الإشعار عبر Firebase
-        Firebase::messaging()->send($message);
+            // نرسل الإشعار عبر Firebase
+            Firebase::messaging()->send($message);
+        } catch (\Exception $e) {
+            \Log::error('FCM Service Error: ' . $e->getMessage());
+        }
     }
 }

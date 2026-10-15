@@ -5,6 +5,7 @@ namespace App\Notifications;
 class taken_by_teacher extends BaseNotification
 {
     private $name;
+
     private $phone_number;
 
     public function __construct($data)
@@ -16,9 +17,9 @@ class taken_by_teacher extends BaseNotification
     protected function getNotificationData(): array
     {
         return [
-            'title'=> "أهلا بك في حلقة الاستاذ {$this->name}",
-            'body'=> 'تستطيع التواص معه عبر الرقم: ' . $this->phone_number,
-            'footer'=> 'أنجز أفضل ما لديك يا فتى الإسلام',
+            'title' => "أهلا بك في حلقة الاستاذ {$this->name}",
+            'body' => 'تستطيع التواصل معه عبر الرقم: '.$this->phone_number,
+            'footer' => 'أنجز أفضل ما لديك يا فتى الإسلام',
         ];
     }
 }

@@ -40,9 +40,13 @@ class User extends Authenticatable implements JWTSubject // تأكد من وجو
         'daora_id',
         'family_status',
         'fcm_token',
-        'job_id', // ✅ --- إضافة الحقول الجديدة هنا
-        'area_id', // ✅ --- إضافة الحقول الجديدة هنا
-        'enrollment_date', // تاريخ الانتساب
+        'job_id',
+        'area_id',
+        'family_members_count',
+        'notes',
+        'skills',
+        'certificates',
+        'enrollment_date',
     ];
 
     /**
@@ -54,6 +58,18 @@ class User extends Authenticatable implements JWTSubject // تأكد من وجو
         'password',
         'remember_token',
     ];
+
+    protected $appends = ['photo_url', 'thumb_url'];
+
+    public function getPhotoUrlAttribute()
+    {
+        return $this->photo ? url('media/uploadsUser/' . $this->photo) : null;
+    }
+
+    public function getThumbUrlAttribute()
+    {
+        return $this->photo ? url('media/uploadsUser/thumb_' . $this->photo) : null;
+    }
 
     /**
      * The attributes that should be cast.
@@ -83,6 +99,20 @@ class User extends Authenticatable implements JWTSubject // تأكد من وجو
         return $this->belongsTo(Area::class);
     }
 
+    /**
+     * Get the daora associated with the user.
+     */
+    public function daora()
+    {
+        return $this->belongsTo(Daora::class);
+    }
+
+    public function daoraPeriods()
+    {
+        return $this->belongsToMany(DaoraPeriod::class, 'daora_period_teacher', 'teacher_id', 'daora_period_id')
+                    ->withTimestamps();
+    }
+
     // --- نهاية إضافة العلاقات ---
 
     public function getJWTIdentifier()
@@ -110,5 +140,20 @@ class User extends Authenticatable implements JWTSubject // تأكد من وجو
         // 'user_id' هو المفتاح الأجنبي في جدول user_tests
         // 'id' هو المفتاح الأساسي في جدول users
         return $this->hasMany(user_test::class, 'user_id', 'id');
+    }
+
+    // حقل age في الداتابيز يخزن تاريخ الميلاد
+    // هذا الـ accessor يحسب العمر تلقائياً من تاريخ الميلاد
+    public function getAgeAttribute()
+    {
+        $birthDate = $this->getRawOriginal('age');
+
+        return $birthDate ? \Carbon\Carbon::parse($birthDate)->age : null;
+    }
+
+    // إرجاع تاريخ الميلاد الخام
+    public function getBirthDateAttribute()
+    {
+        return $this->getRawOriginal('age');
     }
 }

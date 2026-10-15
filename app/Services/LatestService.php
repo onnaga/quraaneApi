@@ -2,21 +2,20 @@
 
 namespace App\Services;
 
+use App\Http\Controllers\ReportController;
 use App\Models\latest;
 use App\Models\point;
 use App\Models\report;
 use App\Models\student;
 use App\Models\User;
-use App\Http\Controllers\ReportController;
 use App\Notifications\delete_latest_quraan_notification;
 use App\Notifications\latest_activities;
 use App\Notifications\latest_hadith_with_homework;
 use App\Notifications\latest_notes;
 use App\Notifications\latest_quraan_with_homework;
-use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Notification;
 
 class LatestService
 {
@@ -30,46 +29,40 @@ class LatestService
     public function addQuraan($data, $user_id, $authUser)
     {
         $student = student::where('user_id', $user_id)->first();
-        if (!$student) {
+        if (! $student) {
             throw new \Exception('الطالب غير موجود', 404);
         }
 
-        if (!$student->teacher_id) {
+        if (! $student->teacher_id) {
             throw new \Exception('المستخدم لا يملك استاذ , يرجى اضافة استاذ له ومن ثم اعادة المحاولة', 403);
         }
 
-        if (!is_array($data) || count($data) < 2) {
+        if (! is_array($data) || count($data) < 2) {
             throw new \Exception('صيغة البيانات المرسلة غير صحيحة', 422);
         }
 
-        $quran_data = $data[0];
-        $homework_data = $data[1];
-
-        $sortByType = function ($items) {
-            $sorted = ['ghaiban' => [], 'nazaran' => []];
-            foreach ($items as $item) {
-                $type = $item->type ?? 'ghaiban';
-                if ($type === 'nazaran') {
-                    $sorted['nazaran'][] = $item;
-                } else {
-                    $sorted['ghaiban'][] = $item;
-                }
-            }
-            return $sorted;
-        };
-
-        $sorted_quran = $sortByType($quran_data);
-        $sorted_homework = $sortByType($homework_data);
+        $quran_data = $data[0] ?? [];
+        $homework_data = $data[1] ?? [];
+        $date = $data[2] ?? date('Y-m-d');
 
         if ($student->latest_id) {
-            latest::where('id', $student->latest_id)->update([
-                'quran'      => json_encode($sorted_quran),
-                'q_homework' => json_encode($sorted_homework),
-            ]);
+            $latest = latest::find($student->latest_id);
+            if (!empty($quran_data)) {
+                $merged_quran = $this->mergeLatestCategorized($latest->quran, $quran_data, $date);
+                $latest->quran = json_encode($merged_quran);
+            }
+            if (!empty($homework_data)) {
+                $merged_homework = $this->mergeLatestCategorized($latest->q_homework, $homework_data, $date);
+                $latest->q_homework = json_encode($merged_homework);
+            }
+            $latest->save();
         } else {
+            $merged_quran = $this->mergeLatestCategorized(null, $quran_data, $date);
+            $merged_homework = $this->mergeLatestCategorized(null, $homework_data, $date);
+            
             $latest_created = latest::create([
-                'quran'      => json_encode($sorted_quran),
-                'q_homework' => json_encode($sorted_homework),
+                'quran' => json_encode($merged_quran),
+                'q_homework' => json_encode($merged_homework),
             ]);
             $student->update(['latest_id' => $latest_created->id]);
         }
@@ -82,27 +75,94 @@ class LatestService
         return true;
     }
 
+    private function mergeLatestCategorized($existing_json, $new_items, $date) {
+        $existing = json_decode($existing_json, true);
+        if (!is_array($existing) || !isset($existing['ghaiban'])) {
+            $existing = ['ghaiban' => [], 'nazaran' => [], 'sibr_juz' => []];
+        }
+        
+        $existing_date = null;
+        if (!empty($existing['ghaiban']) && isset($existing['ghaiban'][0]['date'])) {
+            $existing_date = $existing['ghaiban'][0]['date'];
+        } elseif (!empty($existing['nazaran']) && isset($existing['nazaran'][0]['date'])) {
+            $existing_date = $existing['nazaran'][0]['date'];
+        } elseif (!empty($existing['sibr_juz']) && isset($existing['sibr_juz'][0]['date'])) {
+            $existing_date = $existing['sibr_juz'][0]['date'];
+        }
+        
+        // If the date is different from the existing items' date, we overwrite (keep only latest day's data)
+        if ($existing_date && $existing_date !== $date) {
+            $existing = ['ghaiban' => [], 'nazaran' => [], 'sibr_juz' => []];
+        }
+        
+        foreach ($new_items as $item) {
+            $type = $item->type ?? 'ghaiban';
+            $item_arr = (array) $item;
+            $item_arr['date'] = $date;
+            if ($type === 'nazaran') {
+                $existing['nazaran'][] = $item_arr;
+            } elseif ($type === 'sibr_juz') {
+                if (!isset($existing['sibr_juz'])) {
+                    $existing['sibr_juz'] = [];
+                }
+                $existing['sibr_juz'][] = $item_arr;
+            } else {
+                $existing['ghaiban'][] = $item_arr;
+            }
+        }
+        
+        return $existing;
+    }
+
+    private function mergeLatestFlatArray($existing_json, $new_items, $date) {
+        $existing = json_decode($existing_json, true);
+        if (!is_array($existing)) {
+            $existing = [];
+        }
+        
+        $existing_date = null;
+        if (!empty($existing) && isset($existing[0]['date'])) {
+            $existing_date = $existing[0]['date'];
+        }
+        
+        if ($existing_date && $existing_date !== $date) {
+            $existing = [];
+        }
+        
+        foreach ($new_items as $item) {
+            $item_arr = (array) $item;
+            $item_arr['date'] = $date;
+            $existing[] = $item_arr;
+        }
+        
+        return $existing;
+    }
+
     public function deleteQuraan($item_to_delete, $user_id)
     {
         $student = student::where('user_id', $user_id)->first();
-        if (!$student || !$student->latest_id) {
+        if (! $student || ! $student->latest_id) {
             throw new \Exception('الطالب أو سجل إنجازاته غير موجود', 404);
         }
 
         $latest = latest::find($student->latest_id);
         $quran_data = json_decode($latest->quran, true);
 
-        if (!is_array($quran_data)) {
+        if (! is_array($quran_data)) {
             throw new \Exception('بيانات القرآن غير صالحة في سجل الطالب', 422);
         }
 
         $item_found = false;
 
         foreach ($quran_data as $type => &$items) {
-            if (!is_array($items)) continue;
+            if (! is_array($items)) {
+                continue;
+            }
 
             foreach ($items as $key => $item) {
-                if (!is_array($item)) continue;
+                if (! is_array($item)) {
+                    continue;
+                }
 
                 if (
                     isset($item['num'], $item['from'], $item['to'], $item['type']) &&
@@ -111,8 +171,8 @@ class LatestService
                     $item['to'] == $item_to_delete->to &&
                     $item['type'] == $item_to_delete->type
                 ) {
-                    $result  = $this->if_latest_delete_from_report(
-                        (object)$item,
+                    $result = $this->if_latest_delete_from_report(
+                        (object) $item,
                         $student->user_id,
                         $student->teacher_id,
                         $item_to_delete
@@ -128,7 +188,7 @@ class LatestService
             }
         }
 
-        if (!$item_found) {
+        if (! $item_found) {
             throw new \Exception('الإنجاز المطلوب حذفه غير موجود', 404);
         }
 
@@ -146,18 +206,23 @@ class LatestService
     public function if_latest_delete_from_report($quraan_item, $user_id, $teacher_id, $deleted_request_item)
     {
         $report = report::where('user_id', $user_id)->first();
-        if (!$report || !$report->ended_quraan_this_course) {
+        if (! $report || ! $report->ended_quraan_this_course) {
             return ['error' => 'لا يوجد تقرير لهذا الإنجاز'];
         }
 
         $report_quraan = json_decode($report->ended_quraan_this_course);
 
-        if (!is_object($report_quraan) || !isset($report_quraan->ghaiban) || !isset($report_quraan->nazaran)) {
+        if (! is_object($report_quraan) || ! isset($report_quraan->ghaiban) || ! isset($report_quraan->nazaran)) {
             Log::warning("بنية تقرير القرآن غير صالحة للمستخدم: $user_id");
-            return  ['error' => 'بنية تقرير القرآن غير صالحة للمستخدم'];
+
+            return ['error' => 'بنية تقرير القرآن غير صالحة للمستخدم'];
+        }
+        
+        if (!isset($report_quraan->sibr_juz)) {
+            $report_quraan->sibr_juz = [];
         }
 
-        $item_to_delete = (object)$quraan_item;
+        $item_to_delete = (object) $quraan_item;
         $type = $item_to_delete->type ?? 'ghaiban';
         $mark = $item_to_delete->mark ?? 0;
         $points_to_remove = $item_to_delete->point ?? 0;
@@ -166,7 +231,7 @@ class LatestService
         $deleted_from = $deleted_request_item->from ?? null;
         $deleted_to = $deleted_request_item->to ?? null;
 
-        if (!in_array($type, ['ghaiban', 'nazaran'])) {
+        if (! in_array($type, ['ghaiban', 'nazaran', 'sibr_juz'])) {
             $type = 'ghaiban';
         }
 
@@ -205,7 +270,6 @@ class LatestService
         return true;
     }
 
-
     public function addHadith($data, $user_id)
     {
         $student_id = student::where('user_id', $user_id)->first('id')->id;
@@ -216,17 +280,30 @@ class LatestService
             throw new \Exception('المستخدم لا يملك استاذ , يرجى اضافة استاذ له ومن ثم اعادة المحاولة', 403);
         }
 
+        $hadith_data = $data[0] ?? [];
+        $homework_data = $data[1] ?? [];
+        $date = $data[2] ?? date('Y-m-d');
+
         if ($student->latest_id) {
-            latest::where('id', $student->latest_id)->update([
-                'hadith' => json_encode($data[0]),
-                'h_homework' => json_encode($data[1])
-            ]);
+            $latest = latest::find($student->latest_id);
+            if (!empty($hadith_data)) {
+                $merged_hadith = $this->mergeLatestFlatArray($latest->hadith, $hadith_data, $date);
+                $latest->hadith = json_encode($merged_hadith);
+            }
+            if (!empty($homework_data)) {
+                $merged_homework = $this->mergeLatestFlatArray($latest->h_homework, $homework_data, $date);
+                $latest->h_homework = json_encode($merged_homework);
+            }
+            $latest->save();
         } else {
+            $merged_hadith = $this->mergeLatestFlatArray(null, $hadith_data, $date);
+            $merged_homework = $this->mergeLatestFlatArray(null, $homework_data, $date);
             $latest_created = latest::create([
-                'hadith' => json_encode($data[0])
+                'hadith' => json_encode($merged_hadith),
+                'h_homework' => json_encode($merged_homework),
             ]);
             student::where('id', $student_id)->update([
-                'latest_id' => $latest_created->id
+                'latest_id' => $latest_created->id,
             ]);
         }
 
@@ -241,30 +318,32 @@ class LatestService
     public function deleteHadith($item_to_delete, $user_id)
     {
         $student = student::where('user_id', $user_id)->first();
-        if (!$student || !$student->latest_id) {
+        if (! $student || ! $student->latest_id) {
             throw new \Exception('الطالب أو سجل إنجازاته غير موجود', 404);
         }
 
         $latest = latest::find($student->latest_id);
         $hadith_data = json_decode($latest->hadith, true);
 
-        if (!is_array($hadith_data)) {
+        if (! is_array($hadith_data)) {
             throw new \Exception('بيانات الحديث غير صالحة', 422);
         }
 
         $item_found = false;
         foreach ($hadith_data as $key => $item) {
-            if (!is_array($item)) continue;
+            if (! is_array($item)) {
+                continue;
+            }
 
             if (
                 isset($item['num'], $item['mark'], $item['point']) &&
                 $item['num'] == $item_to_delete->num &&
                 $item['mark'] == $item_to_delete->mark &&
-                $item['point'] == $item_to_delete->point 
+                $item['point'] == $item_to_delete->point
             ) {
 
                 $result = $this->if_latest_delete_from_report_hadith(
-                    (object)$item,
+                    (object) $item,
                     $student->user_id,
                     $student->teacher_id
                 );
@@ -275,11 +354,11 @@ class LatestService
 
                 unset($hadith_data[$key]);
                 $item_found = true;
-                break; 
+                break;
             }
         }
-        
-        if (!$item_found) {
+
+        if (! $item_found) {
             throw new \Exception('الإنجاز المطلوب حذفه غير موجود', 404);
         }
 
@@ -291,20 +370,21 @@ class LatestService
     public function if_latest_delete_from_report_hadith($hadith_item, $user_id, $teacher_id)
     {
         $report = report::where('user_id', $user_id)->first();
-        if (!$report || !$report->ended_hadith_this_course) {
+        if (! $report || ! $report->ended_hadith_this_course) {
             return ['error' => 'لا يوجد تقرير لهذا الإنجاز'];
         }
 
         $report_hadith = json_decode($report->ended_hadith_this_course);
-        if (!is_array($report_hadith)) {
+        if (! is_array($report_hadith)) {
             Log::warning("بنية تقرير الحديث غير صالحة للمستخدم: $user_id");
+
             return ['error' => 'بنية تقرير الحديث غير صالحة للمستخدم'];
         }
 
-        $item_to_delete = (object)$hadith_item;
+        $item_to_delete = (object) $hadith_item;
         $mark = $item_to_delete->mark ?? 0;
         $points_to_remove = $item_to_delete->point ?? 0;
-        $item_was_successful = $mark >= 80; 
+        $item_was_successful = $mark >= 80;
 
         $item_index = null;
         $item_data = null;
@@ -332,10 +412,11 @@ class LatestService
         } else {
             return false;
         }
+
         return true;
     }
 
-    public function addActivity($data, $user_id)
+    public function addActivity($data, $date, $user_id)
     {
         $student_id = student::where('user_id', $user_id)->first('id')->id;
         $student = student::find($student_id);
@@ -346,22 +427,26 @@ class LatestService
         }
 
         if ($student->latest_id) {
-            latest::where('id', $student->latest_id)->update([
-                'activities' => $data
-            ]);
+            $latest = latest::find($student->latest_id);
+            if (!empty($data)) {
+                $merged_activities = $this->mergeLatestFlatArray($latest->activities, $data, $date);
+                $latest->activities = json_encode($merged_activities);
+                $latest->save();
+            }
         } else {
+            $merged_activities = $this->mergeLatestFlatArray(null, $data, $date);
             $latest_created = latest::create([
-                'activities' => $data
+                'activities' => json_encode($merged_activities),
             ]);
             student::where('id', $student_id)->update([
-                'latest_id' => $latest_created->id
+                'latest_id' => $latest_created->id,
             ]);
         }
-        
-        $this->reportController->add_latest_activity(json_decode($data), $user_id, $teacher_id);
+
+        $this->reportController->add_latest_activity($data, $user_id, $teacher_id);
 
         $users = User::where('id', '=', $student->user_id)->get();
-        Notification::send($users, new latest_activities(json_decode($data)));
+        Notification::send($users, new latest_activities($data));
 
         return true;
     }
@@ -369,34 +454,36 @@ class LatestService
     public function deleteActivity($item_to_delete, $user_id)
     {
         $student = student::where('user_id', $user_id)->first();
-        if (!$student || !$student->latest_id) {
+        if (! $student || ! $student->latest_id) {
             throw new \Exception('الطالب أو سجل إنجازاته غير موجود', 404);
         }
 
         $latest = latest::find($student->latest_id);
-        $activity_data = json_decode($latest->activities, true); 
+        $activity_data = json_decode($latest->activities, true);
 
         if (is_string($activity_data)) {
             $activity_data = json_decode($activity_data, true);
         }
 
-        if (!is_array($activity_data)) {
+        if (! is_array($activity_data)) {
             throw new \Exception('بيانات الأنشطة غير صالحة', 422);
         }
 
         $item_found = false;
 
         foreach ($activity_data as $key => $item) {
-            if (!is_array($item)) continue;
+            if (! is_array($item)) {
+                continue;
+            }
 
             if (
                 isset($item['name'], $item['mark'], $item['point']) &&
-                $item['name'] == $item_to_delete->name && 
+                $item['name'] == $item_to_delete->name &&
                 $item['mark'] == $item_to_delete->mark &&
                 $item['point'] == $item_to_delete->point
             ) {
                 $result = $this->if_latest_delete_from_report_activity(
-                    (object)$item,
+                    (object) $item,
                     $student->user_id,
                     $student->teacher_id
                 );
@@ -411,28 +498,29 @@ class LatestService
             }
         }
 
-        if (!$item_found) {
+        if (! $item_found) {
             throw new \Exception('الإنجاز المطلوب حذفه غير موجود', 404);
         }
 
         $latest->update(['activities' => json_encode(array_values($activity_data))]);
+
         return true;
     }
 
     public function if_latest_delete_from_report_activity($activity_item, $user_id, $teacher_id)
     {
         $report = report::where('user_id', $user_id)->first();
-        
-        if (!$report || !$report->activities_this_course) { 
+
+        if (! $report || ! $report->activities_this_course) {
             return ['error' => 'لا يوجد تقرير لهذا الإنجاز'];
         }
 
-        $report_activities = json_decode($report->activities_this_course); 
-        if (!is_array($report_activities)) { 
+        $report_activities = json_decode($report->activities_this_course);
+        if (! is_array($report_activities)) {
             return ['error' => 'بنية تقرير الأنشطة غير صالحة للمستخدم'];
         }
 
-        $item_to_delete = (object)$activity_item;
+        $item_to_delete = (object) $activity_item;
         $mark = $item_to_delete->mark ?? 0;
         $points_to_remove = $item_to_delete->point ?? 0;
         $item_was_successful = $mark >= 80;
@@ -441,7 +529,7 @@ class LatestService
         $item_data = null;
 
         foreach ($report_activities as $index => $item) {
-            if ($item->name == $item_to_delete->name) { 
+            if ($item->name == $item_to_delete->name) {
                 $item_index = $index;
                 $item_data = $item;
                 break;
@@ -449,29 +537,29 @@ class LatestService
         }
 
         if ($item_data) {
-            $result = $this->reportController->remove_latest_activity( 
-                $item_data, 
+            $result = $this->reportController->remove_latest_activity(
+                $item_data,
                 $item_was_successful,
                 $points_to_remove,
                 $user_id,
                 $mark,
                 $item_index,
-                $report_activities, 
+                $report_activities,
                 $report,
-                $activity_item 
+                $activity_item
             );
 
             if (is_array($result) && isset($result['error'])) {
-                return $result; 
+                return $result;
             }
         } else {
             return false;
         }
-        
+
         return true;
     }
 
-    public function addNote($note, $lost_points, $user_id)
+    public function addNote($note, $lost_points, $date, $user_id)
     {
         $student_id = student::where('user_id', $user_id)->first('id')->id;
         $student = student::find($student_id);
@@ -481,16 +569,18 @@ class LatestService
             throw new \Exception('المستخدم لا يملك استاذ , يرجى اضافة استاذ له ومن ثم اعادة المحاول', 403);
         }
 
+        $note_data = json_encode(['note' => $note, 'LPoints' => $lost_points, 'date' => $date]);
+
         if ($student->latest_id) {
             latest::where('id', $student->latest_id)->update([
-                'note' => json_encode(['note' => $note, 'LPoints' => $lost_points])
+                'note' => $note_data,
             ]);
         } else {
             $latest_created = latest::create([
-                'note' => $note
+                'note' => $note_data,
             ]);
             student::where('id', $student_id)->update([
-                'latest_id' => $latest_created->id
+                'latest_id' => $latest_created->id,
             ]);
         }
 
@@ -499,7 +589,7 @@ class LatestService
         if ($lost_points != 0) {
             $l_points = point::find($student->point_id)->l_points;
             point::where('id', $student->point_id)->update([
-                'l_points' => $l_points + $lost_points
+                'l_points' => $l_points + $lost_points,
             ]);
         }
 
@@ -512,12 +602,12 @@ class LatestService
     public function deleteNote($user_id)
     {
         $student = Student::where('user_id', $user_id)->first();
-        if (!$student || !$student->latest_id) {
+        if (! $student || ! $student->latest_id) {
             throw new \Exception('الطالب أو سجل إنجازاته غير موجود', 404);
         }
 
         $latest = Latest::find($student->latest_id);
-        if (!$latest) {
+        if (! $latest) {
             throw new \Exception('سجل الإنجازات الأخير غير موجود', 404);
         }
 
@@ -525,10 +615,10 @@ class LatestService
 
         if (is_array($latest_note_data) && isset($latest_note_data['note'])) {
             $note_text_to_find = $latest_note_data['note'];
-            $lost_points_to_find = $latest_note_data['LPoints'] ?? 0; 
+            $lost_points_to_find = $latest_note_data['LPoints'] ?? 0;
             $note_item_to_delete = [
                 'note' => $note_text_to_find,
-                'lost_point' => $lost_points_to_find 
+                'lost_point' => $lost_points_to_find,
             ];
 
             $this->reportController->remove_latest_note($note_item_to_delete, $user_id);
@@ -542,8 +632,8 @@ class LatestService
     public function getLatestForStudent($user_id, $authUser)
     {
         if ($authUser->privilege > 1) {
-            if (!$user_id) {
-                throw new \Exception("the user id is required", 400);
+            if (! $user_id) {
+                throw new \Exception('the user id is required', 400);
             }
             $target_id = $user_id;
         } else {
@@ -551,6 +641,7 @@ class LatestService
         }
 
         $latest_id = student::where('user_id', $target_id)->value('latest_id');
+
         return latest::find($latest_id);
     }
 
@@ -558,29 +649,38 @@ class LatestService
     {
         $teacher_id = null;
 
-        if ($authUser->privilege > 1) { 
+        if ($authUser->privilege > 1) {
             $teacher_id = $authUser->id;
         } else {
             $student_info = student::where('user_id', $authUser->id)->first();
             $teacher_id = $student_info ? $student_info->teacher_id : null;
         }
 
-        if (!$teacher_id) {
+        if (! $teacher_id) {
             return ['students' => [], 'halakas' => []];
         }
 
-        $students = student::where('teacher_id', $teacher_id)
-            ->get(['user_id', 'point_id', 'teacher_id', 'missing_days', 'last_attendance_status']); 
-
-        foreach ($students as $student) {
-            $student->user_name = User::find($student->user_id)->name;
-            if ($student->point_id != null) {
-                $points = point::find($student->point_id);
-                $student->points = $points->q_points + $points->h_points + $points->a_points - $points->l_points;
-            } else {
-                $student->points = 0;
-            }
-        }
+        $students = DB::table('students')
+            ->join('users', 'students.user_id', '=', 'users.id')
+            ->leftJoin('points', 'students.point_id', '=', 'points.id')
+            ->leftJoin('absence_records', function($join) {
+                $join->on('students.user_id', '=', 'absence_records.user_id')
+                     ->where('absence_records.absence_date', '=', now()->toDateString());
+            })
+            ->where('students.teacher_id', $teacher_id)
+            ->select(
+                'students.user_id',
+                'students.teacher_id',
+                'users.name as user_name',
+                'users.photo',
+                'users.photo_hash',
+                'students.missing_days',
+                'students.last_attendance_status',
+                'absence_records.reason as today_absence_reason',
+                DB::raw('COALESCE(points.q_points,0) + COALESCE(points.h_points,0) + COALESCE(points.a_points,0) - COALESCE(points.l_points,0) as points')
+            )
+            ->orderBy('points', 'desc')
+            ->get();
 
         $halakas = DB::table('halakas')
             ->join('users', 'halakas.teacher_id', '=', 'users.id')
@@ -590,7 +690,7 @@ class LatestService
 
         return [
             'students' => $students,
-            'halakas' => $halakas
+            'halakas' => $halakas,
         ];
     }
 
@@ -599,14 +699,21 @@ class LatestService
         $students = DB::table('students')
             ->join('users', 'students.user_id', '=', 'users.id')
             ->leftJoin('points', 'students.point_id', '=', 'points.id')
+            ->leftJoin('absence_records', function($join) {
+                $join->on('students.user_id', '=', 'absence_records.user_id')
+                     ->where('absence_records.absence_date', '=', now()->toDateString());
+            })
             ->whereNotNull('students.teacher_id')
             ->where('users.daora_id', $daoraId)
             ->select(
                 'students.user_id',
                 'students.teacher_id',
                 'users.name as user_name',
+                'users.photo',
+                'users.photo_hash',
                 'students.missing_days',
                 'students.last_attendance_status',
+                'absence_records.reason as today_absence_reason',
                 DB::raw('COALESCE(points.q_points,0) + COALESCE(points.h_points,0) + COALESCE(points.a_points,0) - COALESCE(points.l_points,0) as points')
             )
             ->get();
@@ -619,7 +726,7 @@ class LatestService
 
         return [
             'students' => $students,
-            'halakas' => $halakas
+            'halakas' => $halakas,
         ];
     }
 }

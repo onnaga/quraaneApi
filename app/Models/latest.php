@@ -17,6 +17,19 @@ class latest extends Model
         'note',
         'q_homework',
         'h_homework',
-
+        'achievement_date',
+        'student_user_id',
     ];
+
+    protected $casts = [
+        'achievement_date' => 'date:Y-m-d',
+    ];
+
+    /**
+     * العلاقة مع المستخدم (الطالب).
+     */
+    public function student()
+    {
+        return $this->belongsTo(\App\Models\User::class, 'student_user_id');
+    }
 }

@@ -12,7 +12,6 @@ use App\Notifications\taken_by_teacher;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Notification;
 use Intervention\Image\Drivers\Gd\Driver;
 use Intervention\Image\ImageManager;
 
@@ -77,16 +76,9 @@ class UserService
         $photoHash = null;
 
         if ($photoFile) {
-            $photoName = uniqid('user_').'.'.$photoFile->getClientOriginalExtension();
-            $manager = new ImageManager(new Driver);
-            $img = $manager->read($photoFile);
-            $img->scaleDown(600);
-            $savePath = storage_path('app/public/uploadsUser');
-            if (! file_exists($savePath)) {
-                mkdir($savePath, 0777, true);
-            }
-            $img->save($savePath.'/'.$photoName);
-            $photoHash = hash_file('sha256', $savePath.'/'.$photoName);
+            $stored = app(\App\Services\ImageStorageService::class)->store($photoFile, 'uploadsUser');
+            $photoName = $stored['photo'];
+            $photoHash = $stored['photo_hash'];
         }
 
         $ids = $this->getOrCreateJobAndArea($data['job'], $data['address']);
@@ -95,12 +87,17 @@ class UserService
             'name' => $data['name'],
             'phone_number' => $data['phone_number'],
             'password' => Hash::make($data['password']),
-            'age' => $data['age'],
+            'age' => $data['birth_date'] ?? null,
             'family_status' => $data['family_status'] ?? null,
+            'family_members_count' => $data['family_members_count'] ?? null,
+            'notes' => $data['notes'] ?? null,
+            'skills' => $data['skills'] ?? null,
+            'certificates' => $data['certificates'] ?? null,
+            'enrollment_date' => $data['enrollment_date'] ?? null,
             'privilege' => 1,
             'photo' => $photoName,
             'photo_hash' => $photoHash,
-            'daora_id' => $data['daora_id'],
+            'daora_id' => $data['daora_id'] ?? null,
             'job_id' => $ids['job_id'],
             'area_id' => $ids['area_id'],
         ]);
@@ -109,13 +106,23 @@ class UserService
 
         $student = student::create([
             'user_id' => $user->id,
-            'ended_quraan_in_aukaf' => $data['ended_quraan_in_aukaf'],
+            'ended_quraan_in_aukaf' => $data['ended_quraan_in_aukaf'] ?? '[]',
+            'current_grade' => $data['current_grade'] ?? null,
+            'school_name' => $data['school_name'] ?? null,
+            'father_phone' => $data['father_phone'] ?? null,
+            'mother_phone' => $data['mother_phone'] ?? null,
+            'landline_phone' => $data['landline_phone'] ?? null,
+            'other_phone' => $data['other_phone'] ?? null,
+            'preferred_contact' => $data['preferred_contact'] ?? null,
+            'previous_mosques' => $data['previous_mosques'] ?? null,
             'missing_days' => 0,
         ]);
 
-        $daora = Daora::find($data['daora_id']);
-        if ($daora) {
-            $daora->increment('number_of_students');
+        if (isset($data['daora_id'])) {
+            $daora = Daora::find($data['daora_id']);
+            if ($daora) {
+                $daora->increment('number_of_students');
+            }
         }
 
         return [
@@ -142,6 +149,7 @@ class UserService
 
         $teacher_id = null;
         $teacher_name = null;
+        $studentData = null;
 
         if ($userToFetch->privilege == 1) {
             $student = student::where('user_id', $userToFetch->id)->first();
@@ -151,6 +159,7 @@ class UserService
                     $teacher = User::find($teacher_id);
                     $teacher_name = $teacher ? $teacher->name : null;
                 }
+                $studentData = $student;
             }
         }
 
@@ -158,6 +167,7 @@ class UserService
             'user' => $userToFetch,
             'teacher_id' => $teacher_id,
             'teache_name' => $teacher_name,
+            'student' => $studentData,
         ];
     }
 
@@ -178,57 +188,107 @@ class UserService
     {
         DB::transaction(function () use ($data, $authUser) {
             $user = User::find($authUser->id);
+            $userData = [];
 
-            $oldJobId = $user->job_id;
-            $oldAreaId = $user->area_id;
+            // 1. معالجة البيانات المباشرة
+            if (array_key_exists('phone_number', $data)) {
+                $userData['phone_number'] = $data['phone_number'];
+            }
+            if (array_key_exists('birth_date', $data)) {
+                $userData['age'] = $data['birth_date']; // تذكر أن العمود في الداتا بيز اسمه age
+            }
+            if (array_key_exists('family_status', $data)) {
+                $userData['family_status'] = $data['family_status'];
+            }
 
-            $newJob = Job::firstOrCreate(['name' => strtolower(trim($data['job']))]);
-            $newArea = Area::firstOrCreate(['name' => strtolower(trim($data['address']))]);
+            // 2. معالجة الوظيفة (Job) - فقط إذا تم إرسالها
+            if (array_key_exists('job', $data) && ! empty($data['job'])) {
+                $oldJobId = $user->job_id;
+                $newJob = Job::firstOrCreate(['name' => strtolower(trim($data['job']))]);
 
-            $user->update([
-                'phone_number' => $data['phone_number'],
-                'age' => $data['age'],
-                'family_status' => $data['family_status'] ?? null,
-                'job_id' => $newJob->id,
-                'area_id' => $newArea->id,
-            ]);
+                $userData['job_id'] = $newJob->id;
 
-            if ($newJob->id !== $oldJobId) {
-                $newJob->increment('user_count');
-                if ($oldJobId && $oldJob = Job::find($oldJobId)) {
-                    $oldJob->decrement('user_count');
+                // تحديث العدادات فقط إذا تغيرت الوظيفة
+                if ($newJob->id !== $oldJobId) {
+                    $newJob->increment('user_count');
+                    if ($oldJobId && $oldJob = Job::find($oldJobId)) {
+                        $oldJob->decrement('user_count');
+                    }
                 }
             }
 
-            if ($newArea->id !== $oldAreaId) {
-                $newArea->increment('user_count');
-                if ($oldAreaId && $oldArea = Area::find($oldAreaId)) {
-                    $oldArea->decrement('user_count');
+            // 3. معالجة المنطقة/العنوان (Area) - فقط إذا تم إرسالها
+            if (array_key_exists('address', $data) && ! empty($data['address'])) {
+                $oldAreaId = $user->area_id;
+                $newArea = Area::firstOrCreate(['name' => strtolower(trim($data['address']))]);
+
+                $userData['area_id'] = $newArea->id;
+
+                // تحديث العدادات فقط إذا تغيرت المنطقة
+                if ($newArea->id !== $oldAreaId) {
+                    $newArea->increment('user_count');
+                    if ($oldAreaId && $oldArea = Area::find($oldAreaId)) {
+                        $oldArea->decrement('user_count');
+                    }
                 }
+            }
+
+            // 4. معالجة الحقول الاختيارية الأخرى
+            // ✅ تم إضافة enrollment_date إلى هذه المصفوفة
+            $optionalFields = ['family_members_count', 'notes', 'skills', 'certificates', 'enrollment_date'];
+            foreach ($optionalFields as $field) {
+                if (array_key_exists($field, $data)) {
+                    $userData[$field] = $data[$field];
+                }
+            }
+
+            // 5. تنفيذ التحديث في قاعدة البيانات فقط إذا كانت هناك بيانات لتحديثها
+            if (! empty($userData)) {
+                $user->update($userData);
             }
         });
 
         return true;
     }
 
-    public function updatePhoto($photoFile, $photo_hash, $authUser)
+    private function replaceUserPhoto($user, $file)
     {
-        $new_photo = rand(0, 9999999).'.'.$photoFile->getClientOriginalExtension();
-        $old_Photo = $authUser->photo;
-        $save_path = storage_path('\uploadsUser');
+        $images = app(\App\Services\ImageStorageService::class);
+        $oldPhoto = $user->photo;
+        
+        $stored = $images->store($file, 'uploadsUser');
+        
+        $updated = \Illuminate\Support\Facades\DB::transaction(function () use ($user, $stored) {
+            return $user->update([
+                'photo' => $stored['photo'],
+                'photo_hash' => $stored['photo_hash'],
+            ]);
+        });
+        
+        if ($oldPhoto && $oldPhoto !== $stored['photo']) {
+            $images->delete('uploadsUser', $oldPhoto);
+        }
+        
+        return ['photo' => $stored['photo'], 'photo_hash' => $stored['photo_hash'], 'updated' => $updated];
+    }
 
-        $manager = new ImageManager(new Driver);
-        $image = $manager->read($photoFile);
-        $image->save($save_path.'\\'.$new_photo);
+    public function updatePhoto($photoFile, $authUser)
+    {
+        return $this->replaceUserPhoto($authUser, $photoFile);
+    }
 
-        File::delete($save_path.'\\'.$old_Photo);
+    public function updateStudentPhoto($photoFile, $studentId, $authUser)
+    {
+        if ($authUser->privilege <= 1) {
+            throw new \Exception('لا تملك صلاحية تعديل صور الطلاب', 403);
+        }
 
-        $updated = User::where('id', $authUser->id)->update([
-            'photo' => $new_photo,
-            'photo_hash' => $photo_hash,
-        ]);
+        $studentUser = User::find($studentId);
+        if (! $studentUser) {
+            throw new \Exception('الطالب غير موجود', 404);
+        }
 
-        return $updated;
+        return $this->replaceUserPhoto($studentUser, $photoFile);
     }
 
     public function addAdmin($data, $authUser)
@@ -311,32 +371,50 @@ class UserService
             throw new \Exception('daora_id is required', 400);
         }
 
+        // ✅ 1. جلب رقم مدير الدورة من جدول الدورات
+        $daora = \App\Models\Daora::find($daora_id);
+        $admin_id = $daora ? $daora->admin_id : null;
+
         $admins = User::with(['job', 'area'])
             ->where('privilege', '>', 1)
             ->where('daora_id', $daora_id)
             ->get();
 
-        return $admins->map(function ($admin) {
-            $adminData = $admin->toArray();
-            $adminData['job_name'] = $admin->job ? $admin->job->name : null;
-            $adminData['area_name'] = $admin->area ? $admin->area->name : null;
-            unset($adminData['job'], $adminData['area']);
-
-            // Get Halaka info if exists
+        // ✅ 2. تجهيز قائمة الأساتذة
+        $teachersList = $admins->map(function ($admin) {
             $halaka = \App\Models\Halaka::where('teacher_id', $admin->id)->first();
-            if ($halaka) {
-                $adminData['has_halaka'] = true;
-                $adminData['halaka_students_count'] = $halaka->students_count;
-            } else {
-                $adminData['has_halaka'] = false;
-                $adminData['halaka_students_count'] = 0;
-            }
 
-            return $adminData;
+            return [
+                'id' => $admin->id,
+                'name' => $admin->name,
+                'phone_number' => $admin->phone_number,
+                'privilege' => $admin->privilege,
+                'age' => $admin->age,
+                'birth_date' => $admin->birth_date,
+                'photo' => $admin->photo,
+                'photo_hash' => $admin->photo_hash,
+                'family_status' => $admin->family_status,
+                'family_members_count' => $admin->family_members_count,
+                'notes' => $admin->notes,
+                'skills' => $admin->skills,
+                'certificates' => $admin->certificates,
+                'job_name' => $admin->job ? $admin->job->name : null,
+                'area_name' => $admin->area ? $admin->area->name : null,
+                'enrollment_date' => $admin->enrollment_date,
+                'created_at' => $admin->created_at,
+                'has_halaka' => $halaka ? true : false,
+                'halaka_students_count' => $halaka ? $halaka->students_count : 0,
+            ];
         });
+
+        // ✅ 3. إرجاع المصفوفة الجديدة التي تحتوي على المدير والقائمة
+        return [
+            'admin_id' => $admin_id,
+            'teachers' => $teachersList,
+        ];
     }
 
-    public function takeStudent($user_id, $authUser)
+public function takeStudent($user_id, $authUser)
     {
         if ($authUser->privilege <= 1) {
             throw new \Exception('لا تملك صلاحية استلام طلاب ', 403);
@@ -346,10 +424,10 @@ class UserService
             throw new \Exception('user_id is required', 400);
         }
 
-        $student_id = student::where('user_id', $user_id)->first('id')->id;
+        $student_id = \App\Models\student::where('user_id', $user_id)->first('id')->id;
 
-        if (student::find($student_id)->teacher_id == null) {
-            $update = student::where('id', $student_id)->update([
+        if (\App\Models\student::find($student_id)->teacher_id == null) {
+            $update = \App\Models\student::where('id', $student_id)->update([
                 'teacher_id' => $authUser->id,
             ]);
 
@@ -359,13 +437,28 @@ class UserService
             );
             $halaka->increment('students_count');
 
-            student::where('id', $student_id)->update([
+            \App\Models\student::where('id', $student_id)->update([
                 'halaka_id' => $halaka->id,
             ]);
 
-            $the_user_to_note = User::where('id', '=', student::find($student_id)->user_id)->get();
-            $teacher = User::find($authUser->id);
-            Notification::send($the_user_to_note, new taken_by_teacher($teacher));
+            // تسجيل تاريخ بدء استلام الطالب للأستاذ الحالي
+            \Illuminate\Support\Facades\DB::table('student_teacher')->insert([
+                'teacher_id' => $authUser->id,
+                'student_id' => $student_id,
+                'started_at' => now()->toDateString(),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            // 👇👇 التعديل الجديد: تحديث الأستاذ في جدول التقارير 👇👇
+            \App\Models\report::where('user_id', $user_id)->update([
+                'teacher_id' => $authUser->id,
+            ]);
+            // 👆👆 نهاية التعديل 👆👆
+
+            $the_user_to_note = \App\Models\User::where('id', '=', \App\Models\student::find($student_id)->user_id)->get();
+            $teacher = \App\Models\User::find($authUser->id);
+            \Illuminate\Support\Facades\Notification::send($the_user_to_note, new taken_by_teacher($teacher));
 
             return $update;
         } else {
@@ -373,7 +466,7 @@ class UserService
         }
     }
 
-    public function leaveStudent($user_id, $authUser)
+public function leaveStudent($user_id, $authUser)
     {
         if ($authUser->privilege <= 1) {
             throw new \Exception('لا تملك صلاحية ترك مستخدمين', 403);
@@ -383,38 +476,80 @@ class UserService
             throw new \Exception('user_id is required', 400);
         }
 
-        $studentRecord = student::where('user_id', $user_id)->first();
+        $studentRecord = \App\Models\student::where('user_id', $user_id)->first();
         if ($studentRecord && $studentRecord->teacher_id) {
             $teacher_id = $studentRecord->teacher_id;
-            $update = student::where('id', $studentRecord->id)->update([
+
+            $update = \App\Models\student::where('id', $studentRecord->id)->update([
                 'teacher_id' => null,
                 'halaka_id' => null,
             ]);
 
             \App\Models\Halaka::where('teacher_id', $teacher_id)->decrement('students_count');
 
+            // تسجيل تاريخ انتهاء العلاقة السابقة (إنهاء التدريس)
+            \Illuminate\Support\Facades\DB::table('student_teacher')
+                ->where('student_id', $studentRecord->id)
+                ->where('teacher_id', $teacher_id)
+                ->whereNull('ended_at')
+                ->update([
+                    'ended_at' => now()->toDateString(),
+                    'updated_at' => now(),
+                ]);
+
+            // 👇👇 التعديل الجديد: تصفير الأستاذ في جدول التقارير 👇👇
+            \App\Models\report::where('user_id', $user_id)->update([
+                'teacher_id' => null,
+            ]);
+            // 👆👆 نهاية التعديل 👆👆
+
             return $update;
         }
 
         return false;
     }
-
-    public function deleteHalaka($halaka_id, $authUser)
+public function deleteHalaka($halaka_id, $authUser)
     {
         if ($authUser->privilege != 3) {
             throw new \Exception('لا تملك صلاحية حذف الحلقات', 403);
         }
 
         $halaka = \App\Models\Halaka::find($halaka_id);
-        if (!$halaka) {
+        if (! $halaka) {
             throw new \Exception('الحلقة غير موجودة', 404);
         }
 
-        // Unassign all students from this halaka
-        \App\Models\student::where('halaka_id', $halaka_id)->update([
-            'teacher_id' => null,
-            'halaka_id' => null,
-        ]);
+        $teacher_id = $halaka->teacher_id;
+        
+        // جلب الطلاب ومعرفات المستخدمين الخاصة بهم
+        $studentsInHalaka = \App\Models\student::where('halaka_id', $halaka_id)->get(['id', 'user_id']);
+        $studentIds = $studentsInHalaka->pluck('id')->toArray();
+        $userIds = $studentsInHalaka->pluck('user_id')->toArray();
+
+        if (!empty($studentIds)) {
+            // تسجيل تاريخ الانتهاء لجميع طلاب الحلقة دفعة واحدة
+            \Illuminate\Support\Facades\DB::table('student_teacher')
+                ->whereIn('student_id', $studentIds)
+                ->where('teacher_id', $teacher_id)
+                ->whereNull('ended_at')
+                ->update([
+                    'ended_at' => now()->toDateString(),
+                    'updated_at' => now(),
+                ]);
+
+            // إزالة ارتباط الطلاب من هذه الحلقة
+            \App\Models\student::whereIn('id', $studentIds)->update([
+                'teacher_id' => null,
+                'halaka_id' => null,
+            ]);
+        }
+
+        // تصفير الأستاذ في جدول التقارير لجميع طلاب الحلقة
+        if (!empty($userIds)) {
+            \App\Models\report::whereIn('user_id', $userIds)->update([
+                'teacher_id' => null,
+            ]);
+        }
 
         return $halaka->delete();
     }
@@ -457,6 +592,20 @@ class UserService
                 ->update([
                     'last_attendance_status' => 'present',
                 ]);
+        }
+
+        // تسجيل يوم الغياب في جدول absence_records
+        foreach ($absentStudentIds as $studentUserId) {
+            \Illuminate\Support\Facades\DB::table('absence_records')->updateOrInsert(
+                [
+                    'user_id' => $studentUserId,
+                    'absence_date' => now()->toDateString(),
+                ],
+                [
+                    'teacher_id' => $teacherId,
+                    'updated_at' => now(),
+                ]
+            );
         }
 
         return true;
@@ -549,14 +698,20 @@ class UserService
 
         $students = DB::table('students')
             ->join('users', 'students.user_id', '=', 'users.id')
+            ->leftJoin('jobs', 'users.job_id', '=', 'jobs.id') // جلب بيانات العمل
             ->whereNull('students.teacher_id')
             ->where('users.daora_id', $daora_id)
             ->select(
                 'students.user_id',
                 'students.ended_quraan_in_aukaf',
+                'students.father_phone',
+                'students.mother_phone',
                 'users.name',
                 'users.phone_number',
-                'users.age'
+                'users.age',
+                'users.family_members_count',
+                'users.notes',
+                'jobs.name as job_name'
             )
             ->get();
 
@@ -570,18 +725,100 @@ class UserService
             throw new \Exception('المستخدم غير موجود', 404);
         }
 
-        $user->update([
+        $userData = [
             'name' => $data['name'],
             'phone_number' => $data['phone_number'],
-            'age' => $data['age'],
-        ]);
+        ];
 
-        if (isset($data['ended_quraan_in_aukaf'])) {
-            $student = Student::where('user_id', $user->id)->first();
-            if ($student) {
-                $student->update([
-                    'ended_quraan_in_aukaf' => $data['ended_quraan_in_aukaf'],
-                ]);
+        // ✅ تحديث الحالة العائلية
+        if (array_key_exists('family_status', $data)) {
+            $userData['family_status'] = $data['family_status'];
+        }
+
+        // ✅ تحديث العمل (Job) مع الحفاظ على العدادات
+        if (array_key_exists('job', $data) && ! empty($data['job'])) {
+            $oldJobId = $user->job_id;
+            $newJob = \App\Models\Job::firstOrCreate(['name' => strtolower(trim($data['job']))]);
+            $userData['job_id'] = $newJob->id;
+
+            if ($newJob->id !== $oldJobId) {
+                $newJob->increment('user_count');
+                if ($oldJobId && $oldJob = \App\Models\Job::find($oldJobId)) {
+                    $oldJob->decrement('user_count');
+                }
+            }
+        }
+
+        // ✅ تحديث السكن (Area) مع الحفاظ على العدادات
+        if (array_key_exists('address', $data) && ! empty($data['address'])) {
+            $oldAreaId = $user->area_id;
+            $newArea = \App\Models\Area::firstOrCreate(['name' => strtolower(trim($data['address']))]);
+            $userData['area_id'] = $newArea->id;
+
+            if ($newArea->id !== $oldAreaId) {
+                $newArea->increment('user_count');
+                if ($oldAreaId && $oldArea = \App\Models\Area::find($oldAreaId)) {
+                    $oldArea->decrement('user_count');
+                }
+            }
+        }
+
+        // إضافة الحقول الأخرى
+        if (isset($data['birth_date'])) {
+            $userData['age'] = $data['birth_date'];
+        }
+        if (isset($data['family_members_count'])) {
+            $userData['family_members_count'] = $data['family_members_count'];
+        }
+        if (array_key_exists('notes', $data)) {
+            $userData['notes'] = $data['notes'];
+        }
+        if (array_key_exists('skills', $data)) {
+            $userData['skills'] = $data['skills'];
+        }
+        if (array_key_exists('certificates', $data)) {
+            $userData['certificates'] = $data['certificates'];
+        }
+        if (array_key_exists('enrollment_date', $data)) {
+            $userData['enrollment_date'] = $data['enrollment_date'];
+        }
+
+        $user->update($userData);
+        // تحديث بيانات الطالب (باقي الكود يبقى كما هو)
+        $student = Student::where('user_id', $user->id)->first();
+        if ($student) {
+            $studentData = [];
+
+            if (isset($data['ended_quraan_in_aukaf'])) {
+                $studentData['ended_quraan_in_aukaf'] = $data['ended_quraan_in_aukaf'];
+            }
+            if (array_key_exists('current_grade', $data)) {
+                $studentData['current_grade'] = $data['current_grade'];
+            }
+            if (array_key_exists('school_name', $data)) {
+                $studentData['school_name'] = $data['school_name'];
+            }
+            if (array_key_exists('father_phone', $data)) {
+                $studentData['father_phone'] = $data['father_phone'];
+            }
+            if (array_key_exists('mother_phone', $data)) {
+                $studentData['mother_phone'] = $data['mother_phone'];
+            }
+            if (array_key_exists('landline_phone', $data)) {
+                $studentData['landline_phone'] = $data['landline_phone'];
+            }
+            if (array_key_exists('other_phone', $data)) {
+                $studentData['other_phone'] = $data['other_phone'];
+            }
+            if (array_key_exists('preferred_contact', $data)) {
+                $studentData['preferred_contact'] = $data['preferred_contact'];
+            }
+            if (array_key_exists('previous_mosques', $data)) {
+                $studentData['previous_mosques'] = $data['previous_mosques'];
+            }
+
+            if (! empty($studentData)) {
+                $student->update($studentData);
             }
         }
 
@@ -590,7 +827,69 @@ class UserService
             'name' => $user->name,
             'phone_number' => $user->phone_number,
             'age' => $user->age,
-            'ended_quraan_in_aukaf' => $data['ended_quraan_in_aukaf'] ?? 'لم يتم التعديل على الاجزاء ',
+            'ended_quraan_in_aukaf' => $data['ended_quraan_in_aukaf'] ?? 'لم يتم التعديل على الاجزاء',
         ];
+    }
+
+    public function getStudentTeachersHistory($identifier, $authUser)
+    {
+        // 1. البحث عن الطالب عبر user_id أو عبر id كاحتياط
+        $student = \Illuminate\Support\Facades\DB::table('students')
+            ->where('user_id', $identifier)
+            ->orWhere('id', $identifier)
+            ->first();
+
+        // 🛑 إذا لم يجده، سنجعل رسالة الخطأ تطبع الرقم الذي وصلها من فلاتر!
+        if (! $student) {
+            throw new \Exception('الطالب غير موجود. الرقم الذي أرسله التطبيق هو: ('.$identifier.')', 404);
+        }
+
+        // 2. التحقق من الصلاحيات وطباعة الأرقام في حال الرفض لكشف الخلل
+        if ($authUser->privilege < 2 && $authUser->id != $student->user_id) {
+            throw new \Exception("عذراً! رقم حسابك هو ({$authUser->id}) وسجل الطالب يعود للحساب رقم ({$student->user_id}). لا تملك صلاحية.", 403);
+        }
+
+        // 3. جلب السجل بشكل طبيعي
+        $history = \Illuminate\Support\Facades\DB::table('student_teacher')
+            ->join('users as teachers', 'student_teacher.teacher_id', '=', 'teachers.id')
+            ->where('student_teacher.student_id', $student->id)
+            ->select(
+                'teachers.name as teacher_name',
+                'student_teacher.started_at',
+                'student_teacher.ended_at'
+            )
+            ->orderBy('student_teacher.started_at', 'desc')
+            ->get();
+
+        return $history;
+    }
+
+    public function getUserBehavior($studentId)
+    {
+        return \Illuminate\Support\Facades\DB::table('user_behaviors')
+            ->where('user_id', $studentId)
+            ->first();
+    }
+
+    public function updateUserBehavior($studentId, $teacherId, $data)
+    {
+        // ستقوم هذه الدالة بتحديث كل الحقول المرسلة.
+        // إذا قام الأستاذ بمسح النص، سيصل فارغاً (أو null) وسيتم مسحه من القاعدة.
+        \Illuminate\Support\Facades\DB::table('user_behaviors')->updateOrInsert(
+            ['user_id' => $studentId],
+            [
+                'teacher_id' => $teacherId,
+                'traits' => $data['traits'] ?? null,
+                'habits' => $data['habits'] ?? null,
+                'discipline' => $data['discipline'] ?? null,
+                'morals' => $data['morals'] ?? null,
+                'skills' => $data['skills'] ?? null,
+                'positive_actions' => $data['positive_actions'] ?? null,
+                'negative_actions' => $data['negative_actions'] ?? null,
+                'updated_at' => now(),
+            ]
+        );
+
+        return true;
     }
 }

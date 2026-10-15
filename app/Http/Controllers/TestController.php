@@ -2,9 +2,9 @@
 
 namespace App\Http\Controllers;
 
-use App\Services\TestService;
 use App\Http\Requests\Api\Test\AddNewTestRequest;
 use App\Http\Requests\Api\Test\UpdateAukafTestRequest;
+use App\Services\TestService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -14,7 +14,7 @@ class TestController extends Controller
 
     public function __construct(TestService $testService)
     {
-         $this->testService = $testService;
+        $this->testService = $testService;
     }
 
     public function add_new_test(AddNewTestRequest $request)
@@ -24,19 +24,20 @@ class TestController extends Controller
             $created_test = $this->testService->addNewTest($request->validated(), $authUser);
 
             return response()->json(['created_test' => $created_test], 201);
-            
+
         } catch (\Exception $e) {
             $code = $e->getCode() > 0 ? $e->getCode() : 500;
             if ($code == 500) {
-                 return response()->json(['message' => 'حدث خطأ غير متوقع في الخادم', 'error' => $e->getMessage()], 500);
+                return response()->json(['message' => 'حدث خطأ غير متوقع في الخادم', 'error' => $e->getMessage()], 500);
             }
+
             return response()->json(['message' => $e->getMessage()], $code);
         }
     }
 
     public function show_tests(Request $request)
     {
-         $request->validate([
+        $request->validate([
             'daora_id' => 'required|integer|exists:daoras,id',
         ]);
 
@@ -60,8 +61,9 @@ class TestController extends Controller
         } catch (\Exception $e) {
             $code = $e->getCode() > 0 ? $e->getCode() : 500;
             if ($code == 404 || $code == 403) {
-                 return response()->json(['error' => $e->getMessage()]);
+                return response()->json(['error' => $e->getMessage()]);
             }
+
             return response()->json($e->getMessage()); // Matching the old response format directly
         }
     }
@@ -70,7 +72,7 @@ class TestController extends Controller
     {
         try {
             $request->validate([
-                'student_id' => 'required|integer|exists:users,id'
+                'student_id' => 'required|integer|exists:users,id',
             ]);
 
             $authUser = Auth::user();
@@ -80,7 +82,8 @@ class TestController extends Controller
 
         } catch (\Exception $e) {
             $code = $e->getCode() > 0 ? $e->getCode() : 500;
-            return response()->json(['error' => $e->getMessage()], $code == 500 ? 400 : $code); 
+
+            return response()->json(['error' => $e->getMessage()], $code == 500 ? 400 : $code);
         }
     }
 
@@ -88,7 +91,7 @@ class TestController extends Controller
     {
         try {
             $request->validate([
-                'student_id' => 'required|integer|exists:users,id'
+                'student_id' => 'required|integer|exists:users,id',
             ]);
 
             $authUser = Auth::user();
@@ -98,7 +101,8 @@ class TestController extends Controller
 
         } catch (\Exception $e) {
             $code = $e->getCode() > 0 ? $e->getCode() : 500;
-            return response()->json(['error' => $e->getMessage()], $code == 500 ? 400 : $code); 
+
+            return response()->json(['error' => $e->getMessage()], $code == 500 ? 400 : $code);
         }
     }
 
@@ -113,9 +117,10 @@ class TestController extends Controller
         } catch (\Exception $e) {
             $code = $e->getCode() > 0 ? $e->getCode() : 500;
             if ($code == 404 || $code == 403) {
-                 return response()->json(['error' => $e->getMessage()]);
+                return response()->json(['error' => $e->getMessage()]);
             }
-            return response()->json($e->getMessage()); 
+
+            return response()->json($e->getMessage());
         }
     }
 
@@ -126,7 +131,7 @@ class TestController extends Controller
             $this->testService->deleteTest($test_id, $authUser);
 
             return response()->json([
-                'message' => 'تم حذف السبر وكل ما يتعلق به بنجاح'
+                'message' => 'تم حذف السبر وكل ما يتعلق به بنجاح',
             ], 200);
 
         } catch (\Exception $e) {
@@ -135,11 +140,12 @@ class TestController extends Controller
                 return response()->json(['error' => $e->getMessage()], 403);
             }
             if ($code == 404) {
-                 return response()->json(['error' => $e->getMessage()], 404);
+                return response()->json(['error' => $e->getMessage()], 404);
             }
+
             return response()->json([
                 'error' => 'حصل خطأ أثناء الحذف',
-                'details' => $e->getMessage()
+                'details' => $e->getMessage(),
             ], 500);
         }
     }
@@ -147,22 +153,22 @@ class TestController extends Controller
     public function show_test_accepters($test_id)
     {
         try {
-             $tests = $this->testService->showTestAccepters($test_id);
-             return response()->json($tests);
+            $tests = $this->testService->showTestAccepters($test_id);
+
+            return response()->json($tests);
         } catch (\Exception $e) {
             return response()->json([
                 $e->getMessage(),
-                'trace' => $e->getTrace()
+                'trace' => $e->getTrace(),
             ]);
         }
     }
-
 
     public function update_test_accepter_data(Request $request, $test_id, $user_id)
     {
         try {
             // Can be extracted to FormRequest, but adhering to the old structure
-             $request->validate([
+            $request->validate([
                 'the_part_to_test_in' => 'required',
                 'rating' => 'required',
                 'notes' => 'required',
@@ -174,50 +180,62 @@ class TestController extends Controller
             return response()->json(['updated' => $updated]);
 
         } catch (\Illuminate\Validation\ValidationException $e) {
-             return response()->json(['status' => 'error', 'messages' => 'البيانات المدخلة غير صحيحة ', 'errors' => $e->errors()], 403);
+            return response()->json(['status' => 'error', 'messages' => 'البيانات المدخلة غير صحيحة ', 'errors' => $e->errors()], 403);
         } catch (\Exception $e) {
             $code = $e->getCode() > 0 ? $e->getCode() : 500;
             if ($code == 403) {
-                 return response()->json(['message' => $e->getMessage()]);
+                return response()->json(['message' => $e->getMessage()]);
             }
             if ($code == 404) {
-                 return response()->json(['error' => $e->getMessage()]);
+                return response()->json(['error' => $e->getMessage()]);
             }
-             return response()->json($e->getMessage());
+
+            return response()->json($e->getMessage());
         }
     }
 
-
     public function show_success_students_in_test($test_id)
     {
-         try {
+        try {
             $data = $this->testService->showSuccessStudentsInTest($test_id);
+
             return response()->json($data);
-         } catch (\Exception $e) {
-             return response()->json([
-                'message' => $e->getMessage(), 
-                $e->getTrace()
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => $e->getMessage(),
+                $e->getTrace(),
             ]);
-         }
+        }
     }
 
-    public function make_aukaf_test_for_success_students(AddNewTestRequest $request, $test_id)
+    public function make_aukaf_test_for_success_students(Request $request, $test_id)
     {
         try {
-            $authUser = Auth::user();
-            $data = $this->testService->makeAukafTestForSuccessStudents($test_id, $request->validated(), $authUser);
-
-            return response()->json([
-                'aukaf_test'  => $data['aukaf_test'],
-                'aukaf_users' => $data['aukaf_users']
+            // ✅ التحقق فقط من الحقول التي يرسلها فلاتر لهذه الدالة تحديداً
+            $validated = $request->validate([
+                'End_time' => 'required|date',
+                'notes' => 'nullable|string',
             ]);
 
+            $authUser = Auth::user();
+            // تمرير البيانات المُتحقق منها للسيرفس
+            $data = $this->testService->makeAukafTestForSuccessStudents($test_id, $validated, $authUser);
+
+            return response()->json([
+                'aukaf_test' => $data['aukaf_test'],
+                'aukaf_users' => $data['aukaf_users'],
+            ]);
+
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            // ✅ إرجاع رسالة خطأ واضحة في حال فشل التحقق (422)
+            return response()->json(['message' => $e->getMessage()], 422);
         } catch (\Exception $e) {
-             $code = $e->getCode() > 0 ? $e->getCode() : 500;
-             if ($code == 500) {
-                 return response()->json(['error' => $e->getMessage()], 500);
-             }
-             return response()->json(['message' => $e->getMessage()], $code);
+            $code = $e->getCode() > 0 ? $e->getCode() : 500;
+            if ($code == 500) {
+                return response()->json(['error' => $e->getMessage()], 500);
+            }
+
+            return response()->json(['message' => $e->getMessage()], $code);
         }
     }
 
@@ -228,7 +246,7 @@ class TestController extends Controller
 
             return response()->json([
                 'status' => 'success',
-                'messages' => 'تم تعديل بيانات الاختبار بنجاح'
+                'messages' => 'تم تعديل بيانات الاختبار بنجاح',
             ], 200);
 
         } catch (\Exception $e) {
@@ -236,10 +254,11 @@ class TestController extends Controller
             if ($code == 404) {
                 return response()->json(['messages' => $e->getMessage()], 404);
             }
+
             return response()->json([
                 'status' => 'error',
                 'messages' => 'حدث خطأ غير متوقع',
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ], 500);
         }
     }
