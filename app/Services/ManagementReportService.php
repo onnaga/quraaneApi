@@ -3,8 +3,8 @@
 namespace App\Services;
 
 use App\Models\Halaka;
-use App\Models\Report;
-use App\Models\Student;
+use App\Models\report as Report;
+use App\Models\student as Student;
 use App\Models\StudentGoal;
 use App\Models\UserBehavior;
 use Carbon\Carbon;

@@ -62,7 +62,8 @@ class ManagementReportController extends Controller implements HasMiddleware
 
         try {
             return response()->json($this->reportService->getTeacherStats($teacherId));
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
+            Log::error('getTeacherStats error: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
             return $this->errorResponse('خطأ في جلب الإحصائيات: ' . $e->getMessage());
         }
     }
@@ -76,7 +77,8 @@ class ManagementReportController extends Controller implements HasMiddleware
 
         try {
             return response()->json($this->reportService->getMosqueStats($daoraId));
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
+            Log::error('getMosqueStats error: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
             return $this->errorResponse('خطأ في جلب الإحصائيات: ' . $e->getMessage());
         }
     }
